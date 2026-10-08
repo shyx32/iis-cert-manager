@@ -5,15 +5,15 @@ $ErrorActionPreference = 'Stop'
 if ($Version -notmatch '^\d+\.\d+\.\d+(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$') { throw 'Invalid version.' }
 $root = Split-Path $PSScriptRoot -Parent
 if (-not (Get-Command dotnet -ErrorAction SilentlyContinue)) { throw 'Install .NET 10 SDK first: https://dotnet.microsoft.com/download/dotnet/10.0' }
-function Dotnet { & dotnet @args; if ($LASTEXITCODE -ne 0) { throw "dotnet failed ($LASTEXITCODE)" } }
-Dotnet restore "$root/IisCertManager.sln"
-Dotnet build "$root/IisCertManager.sln" -c Release --no-restore "-p:Version=$Version"
-Dotnet run --project "$root/tests/IisCertManager.Tests" -c Release --no-build
+function Invoke-Dotnet { & dotnet @args; if ($LASTEXITCODE -ne 0) { throw "dotnet failed ($LASTEXITCODE)" } }
+Invoke-Dotnet restore "$root/IisCertManager.sln"
+Invoke-Dotnet build "$root/IisCertManager.sln" -c Release --no-restore "-p:Version=$Version"
+Invoke-Dotnet run --project "$root/tests/IisCertManager.Tests" -c Release --no-build
 $package = Join-Path $root 'artifacts/package'
 if (Test-Path $package) { Remove-Item $package -Recurse -Force }
 New-Item $package -ItemType Directory -Force | Out-Null
 foreach ($project in @('Service','Client')) {
-    Dotnet publish "$root/src/IisCertManager.$project" -c Release "-p:Version=$Version" -r $Runtime --self-contained true -p:PublishSingleFile=false -o "$package/$($project.ToLowerInvariant())"
+    Invoke-Dotnet publish "$root/src/IisCertManager.$project" -c Release "-p:Version=$Version" -r $Runtime --self-contained true -p:PublishSingleFile=false -o "$package/$($project.ToLowerInvariant())"
 }
 Copy-Item "$root/scripts" "$package/scripts" -Recurse
 Copy-Item "$root/README.md" "$package/README.md"
