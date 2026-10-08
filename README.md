@@ -18,13 +18,13 @@ Windows 原生 WPF 客户端 + Windows Service。两者安装在同一台 IIS �
 
 ## 运行环境
 
-建议 Windows Server 2022/2025 + IIS 10，或仍获支持的 Windows 11 + IIS 10。请启用 IIS 管理脚本和工具。首版发布 `win-x64` 自包含程序，运行时无需另外安装 .NET。开发/构建需要 .NET 10 SDK。
+Windows Server 2016/2019/2022/2025（带桌面体验）+ IIS 10，或仍获支持的 Windows 11 + IIS 10。请启用 IIS 管理脚本和工具。首版发布 `win-x64` 自包含程序，运行时无需另外安装 .NET。开发/构建需要 .NET 10 SDK；生成安装 EXE 还需要 Windows 与 Visual Studio C++ Build Tools（包含 Windows SDK）。
 
 更新已有 HTTPS 绑定仅支持普通 SNI；可读取非 SNI 和集中证书存储绑定，但不会自动改写这些特殊绑定。空主机名/IP 站点须先在 IIS 中配置实际域名。一个全局配置支持一个阿里云 DNS 主域及其子域，可管理多个 IIS 站点。
 
 ## 使用发布包
 
-1. 下载 `IisCertManager-Setup-win-x64.exe`，双击运行，在 Windows 管理员权限提示中选择“是”。无需解压、无需安装 .NET、无需输入命令。
+1. 下载 `IisCertManager-Setup-win-x64.exe`，双击运行，在 Windows 管理员权限提示中选择“是”。安装窗口使用 Win32 原生界面，不依赖 .NET 启动。无需解压、无需安装 .NET、无需输入命令。
 2. 点击“安装 / 更新”，完成后点击“打开证书管家”。已有版本也可直接运行新安装程序更新；更新前关闭管理界面。安装失败会显示原因或日志位置。
 3. 从桌面打开“IIS Certificate Manager”（程序界面为中文）。界面要求管理员权限。
 4. 在“全局配置”填写联系邮箱，阅读并同意 Let's Encrypt 服务条款。建议保留测试 CA 做首次验证。

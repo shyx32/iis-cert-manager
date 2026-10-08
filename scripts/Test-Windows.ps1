@@ -11,6 +11,8 @@ Start-Service W3SVC
 & dotnet run --project "$root/tests/IisCertManager.WindowsTests" -c Release --no-build
 if ($LASTEXITCODE -ne 0) { throw 'Native Windows checks failed.' }
 try {
+    $ui = Start-Process "$root/artifacts/IisCertManager-Setup-win-x64.exe" -ArgumentList '--ui-check' -Wait -PassThru
+    if ($ui.ExitCode -ne 0) { throw "Installer GUI startup failed ($($ui.ExitCode))." }
     $installer = Start-Process "$root/artifacts/IisCertManager-Setup-win-x64.exe" -ArgumentList '--silent' -Wait -PassThru
     if ($installer.ExitCode -ne 0) { throw "EXE installer failed ($($installer.ExitCode))." }
     & "$root/scripts/Verify-Windows.ps1"

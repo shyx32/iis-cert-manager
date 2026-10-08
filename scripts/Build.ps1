@@ -22,11 +22,24 @@ Copy-Item "$root/VALIDATION.md" "$package/VALIDATION.md"
 Copy-Item "$root/REVIEW.md" "$package/REVIEW.md"
 $zip = Join-Path $root "artifacts/IisCertManager-$Runtime.zip"
 Compress-Archive "$package/*" $zip -Force
-# Embed the exact tested payload in a self-contained, administrator-elevated installer.
-$setupOutput = Join-Path $root 'artifacts/setup'
-Invoke-Dotnet publish "$root/src/IisCertManager.Setup" -c Release "-p:Version=$Version" -r $Runtime --self-contained true "-p:PayloadPath=$zip" -o $setupOutput
-$setup = Join-Path $root "artifacts/IisCertManager-Setup-$Runtime.exe"
-Copy-Item (Join-Path $setupOutput 'IisCertManager-Setup.exe') $setup -Force
+# Native Win32 installer: no managed runtime or single-file extraction is needed to open the UI.
+if ($env:OS -eq 'Windows_NT') {
+    if ($Runtime -ne 'win-x64') { throw 'Native installer currently supports win-x64 only.' }
+    $native = Join-Path $root 'artifacts/native-setup'
+    New-Item $native -ItemType Directory -Force | Out-Null
+    $manifestPath = (Join-Path $root 'src/NativeSetup/app.manifest').Replace('\', '/')
+    $bootstrapPath = (Join-Path $root 'src/NativeSetup/Bootstrap.ps1').Replace('\', '/')
+    $payloadPath = $zip.Replace('\', '/')
+    @(('1 24 "' + $manifestPath + '"'), ('101 RCDATA "' + $payloadPath + '"'), ('102 RCDATA "' + $bootstrapPath + '"')) | Set-Content -Encoding utf8 (Join-Path $native 'setup.rc')
+    $buildCommand = '""{0}" "{1}""' -f (Join-Path $root 'scripts/Build-NativeSetup.cmd'), $root
+    & $env:ComSpec /d /s /c $buildCommand
+    if ($LASTEXITCODE -ne 0) { throw 'Native installer build failed. Install Visual Studio C++ Build Tools with Windows SDK.' }
+    $setup = Join-Path $root "artifacts/IisCertManager-Setup-$Runtime.exe"
+    Copy-Item (Join-Path $native 'IisCertManager-Setup-win-x64.exe') $setup -Force
+} else {
+    Write-Host 'Native installer requires Windows + Visual Studio C++ Build Tools; producing ZIP packages only on this host.'
+    $setup = $null
+}
 $sourceZip = Join-Path $root 'artifacts/IisCertManager-source.zip'
 $hasRepository = $false
 if ((Test-Path -LiteralPath (Join-Path $root '.git')) -and (Get-Command git -ErrorAction SilentlyContinue)) {
@@ -45,7 +58,7 @@ if ($hasRepository) {
     $sourceFiles = Get-ChildItem $root -Recurse -File -Force | Where-Object {
         $relative = $_.FullName.Substring($sourcePrefix.Length)
         $relative -notmatch '(^|[\\/])(bin|obj|artifacts|\.git|\.vs)([\\/]|$)' -and
-        ($_.Extension -in @('.cs','.csproj','.sln','.xaml','.manifest','.props','.targets','.md','.yml','.yaml','.ps1') -or
+        ($_.Extension -in @('.cs','.csproj','.sln','.xaml','.manifest','.props','.targets','.md','.yml','.yaml','.ps1','.cmd','.cpp') -or
          $_.Name -in @('.gitignore','.gitattributes','packages.lock.json','aliyun-ram-policy.json'))
     }
     foreach ($file in $sourceFiles) {
@@ -55,7 +68,7 @@ if ($hasRepository) {
     }
     Compress-Archive -Path $sourceStage -DestinationPath $sourceZip -Force
 }
-$hashes = @($setup, $zip, $sourceZip) | ForEach-Object {
+$hashes = @($setup, $zip, $sourceZip) | Where-Object { $_ } | ForEach-Object {
     $hash = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant()
     "$hash  $([IO.Path]::GetFileName($_))"
 }
