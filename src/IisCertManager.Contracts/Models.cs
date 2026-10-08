@@ -44,7 +44,7 @@ public sealed record Profile
 }
 public sealed record Snapshot(Settings Settings, List<SiteBinding> Bindings, List<Profile> Profiles, string[] Logs);
 public sealed record Request(string Action, Settings? Settings = null, Profile? Profile = null, Guid? Id = null, bool? Enabled = null);
-public sealed record Response(bool Ok, string Message, Snapshot? Snapshot = null);
+public sealed record Response(bool Ok, string Message, Snapshot? Snapshot = null, string? Diagnostics = null);
 public static class Policy
 {
     public static string Domain(string value, bool wildcard = false)
@@ -87,6 +87,13 @@ public static class Policy
         return Convert.ToBase64String(HMACSHA1.HashData(Encoding.UTF8.GetBytes(secret + "&"), Encoding.UTF8.GetBytes(input)));
     }
     public static TimeSpan RetryDelay(int failures) => TimeSpan.FromMinutes(Math.Min(1440, 15 * Math.Pow(2, Math.Clamp(failures - 1, 0, 7))));
+    // Both renewal eligibility and failure backoff must have elapsed before an automatic attempt.
+    public static DateTimeOffset? ScheduledAttempt(Profile p, Settings s)
+    {
+        if (!p.Enabled || s.Staging) return null;
+        var renewal = p.Expires?.AddDays(-s.RenewBeforeDays);
+        return p.NextAttempt is { } retry && (renewal == null || retry > renewal) ? retry : renewal;
+    }
     public static bool Due(Profile p, Settings s, DateTimeOffset now) => p.Enabled && !s.Staging &&
         (p.NextAttempt == null || p.NextAttempt <= now) &&
         (p.Expires == null || p.Expires <= now.AddDays(s.RenewBeforeDays));

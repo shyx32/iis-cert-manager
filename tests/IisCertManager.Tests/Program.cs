@@ -36,6 +36,11 @@ Check(!Policy.Due(p, s with { Staging = true }, now), "staging never automatical
 Check(!Policy.Due(p with { NextAttempt = now.AddHours(1) }, s, now), "retry backoff honored");
 Check(!Policy.Due(p with { Expires = now.AddDays(60) }, s, now), "fresh certificate not reissued");
 Check(Policy.Due(p with { Expires = null }, s, now), "unissued managed rule due");
+Check(Policy.ScheduledAttempt(p with { Expires = now.AddDays(90), NextAttempt = now.AddHours(12) }, s) == now.AddDays(60), "successful cooldown is not displayed as the renewal date");
+Check(Policy.ScheduledAttempt(p with { Expires = now.AddDays(90) }, s with { RenewBeforeDays = 21 }) == now.AddDays(69), "renewal plan follows configured lead time");
+Check(Policy.ScheduledAttempt(p with { Expires = now.AddDays(20), NextAttempt = now.AddHours(1) }, s) == now.AddHours(1), "retry plan honors backoff after entering renewal window");
+Check(Policy.ScheduledAttempt(p with { Enabled = false }, s) == null && Policy.ScheduledAttempt(p, s with { Staging = true }) == null, "paused and staging rules have no automatic plan");
+Check(Policy.ScheduledAttempt(p with { Expires = null, NextAttempt = now.AddHours(1) }, s) == now.AddHours(1), "unissued failed rule displays retry time");
 var req = new Request("profile", Profile: p);
 Check(JsonSerializer.Deserialize<Request>(JsonSerializer.Serialize(req, Wire.Json), Wire.Json)?.Profile?.Id == p.Id, "IPC JSON roundtrip");
 Check(Policy.RetryDelay(1) == TimeSpan.FromMinutes(15), "first failure retries after 15 minutes");

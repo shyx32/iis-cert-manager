@@ -41,7 +41,7 @@ public sealed class ControlServer(StateStore store, IisManager iis, CertificateM
                 else
                 {
                     try { response = await Handle(request, stoppingToken); }
-                    catch (Exception e) { response = new(false, e.Message); }
+                    catch (Exception e) { store.LogError("控制操作：" + request.Action, e); response = new(false, store.Redact(e.Message)); }
                     finally { store.Gate.Release(); }
                 }
                 using var outputTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
@@ -58,6 +58,7 @@ public sealed class ControlServer(StateStore store, IisManager iis, CertificateM
     {
         switch (request.Action)
         {
+            case "diagnostics": return new(true, "诊断日志已生成。", Diagnostics: DiagnosticReport.Create(store, iis));
             case "snapshot": break;
             case "settings": store.UpdateSettings(request.Settings ?? throw new ArgumentException("缺少配置。")); break;
             case "profile":

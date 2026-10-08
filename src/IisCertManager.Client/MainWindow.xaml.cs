@@ -62,6 +62,12 @@ public partial class MainWindow : Window
     {
         snapshot = data;
         ((BindingPresentation)Resources["BindingView"]).RenewBeforeDays = data.Settings.RenewBeforeDays;
+        ((RulePresentation)Resources["RuleView"]).Settings = data.Settings;
+        var enabledRules = data.Profiles.Where(x => x.Enabled).ToArray();
+        RulesEnabled.Text = enabledRules.Length.ToString();
+        RulesHealthy.Text = enabledRules.Count(x => x.Failures == 0 && x.Expires > DateTimeOffset.Now.AddDays(data.Settings.RenewBeforeDays)).ToString();
+        RulesAttention.Text = enabledRules.Count(x => x.Failures > 0 || x.Expires == null || x.Expires <= DateTimeOffset.Now.AddDays(data.Settings.RenewBeforeDays)).ToString();
+        RulesPolicy.Text = $"提前 {data.Settings.RenewBeforeDays} 天自动续期 · 时间按服务器本地显示";
         SetupNotice.Visibility = data.Settings.AcceptTerms && data.Settings.Email.Length > 0 ? Visibility.Collapsed : Visibility.Visible;
         EmptyProfiles.Visibility = data.Profiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         var selected = Sites.SelectedItem as SiteBinding;
@@ -211,6 +217,19 @@ public partial class MainWindow : Window
     {
         try { Clipboard.SetText(Logs.Text); Status.Text = "日志已复制。"; }
         catch (Exception error) { Status.Text = "无法复制日志：" + error.Message; }
+    }
+    async void OnExportLogs(object sender, RoutedEventArgs e)
+    {
+        var response = await Call(new("diagnostics"));
+        if (closed || response?.Ok != true || response.Diagnostics == null) return;
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "导出诊断日志", Filter = "文本日志 (*.txt)|*.txt", DefaultExt = ".txt",
+            FileName = $"IisCertManager-Diagnostics-{DateTime.Now:yyyyMMdd-HHmmss}.txt"
+        };
+        if (dialog.ShowDialog(this) != true) return;
+        try { System.IO.File.WriteAllText(dialog.FileName, response.Diagnostics, new System.Text.UTF8Encoding(true)); Status.Text = "诊断日志已导出。"; }
+        catch (Exception error) { Status.Text = "无法导出诊断日志：" + error.Message; }
     }
     void OnNavigate(object sender, RequestNavigateEventArgs e)
     {

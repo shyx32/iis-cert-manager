@@ -103,7 +103,20 @@ internal static class Program
         Capture("IisCertManager-Sites", 1240, 820);
         Check(Control<Border>("DetailPanel").Visibility == Visibility.Collapsed, "unselected binding does not display an empty form");
         tabs.SelectedIndex = 2; Capture("IisCertManager-Settings", 1240, 820);
+        var visualNow = DateTimeOffset.Now;
+        var healthy = profile with { Enabled = true, Expires = visualNow.AddDays(90), NextAttempt = visualNow.AddHours(12), Failures = 0, Status = "已签发并绑定 HTTPS" };
+        var retry = profile with { Id = Guid.NewGuid(), Host = "api.example.com", Enabled = true, Expires = visualNow.AddDays(20), NextAttempt = visualNow.AddHours(1), Failures = 2, Status = "失败：验证超时" };
+        var pending = profile with { Id = Guid.NewGuid(), Host = "new.example.com", Enabled = true, Expires = null, NextAttempt = null, Failures = 0, Status = "等待签发" };
+        var paused = profile with { Id = Guid.NewGuid(), Host = "old.example.com", Enabled = false, Expires = visualNow.AddDays(10), Failures = 0 };
+        apply.Invoke(window, [snapshot with { Profiles = [healthy, retry, pending, paused] }, false]);
         tabs.SelectedIndex = 1; Capture("IisCertManager-Rules", 1240, 820);
+        Check(Control<TextBlock>("RulesEnabled").Text == "3" && Control<TextBlock>("RulesHealthy").Text == "1" && Control<TextBlock>("RulesAttention").Text == "2", "rule overview distinguishes healthy, pending and paused rules");
+        var rulesView = (IisCertManager.Client.RulePresentation)window.Resources["RuleView"];
+        Check((string)rulesView.Convert(healthy, typeof(string), "schedule", System.Globalization.CultureInfo.InvariantCulture) == healthy.Expires!.Value.AddDays(-30).ToLocalTime().ToString("yyyy-MM-dd HH:mm"), "rule UI shows local renewal date instead of successful cooldown");
+        Check((string)rulesView.Convert(retry, typeof(string), "status", System.Globalization.CultureInfo.InvariantCulture) == "等待重试" && (string)rulesView.Convert(paused, typeof(string), "schedule", System.Globalization.CultureInfo.InvariantCulture) == "已暂停", "rule badges and plan distinguish retry and pause states");
+        Capture("IisCertManager-Rules-Compact", 1060, 720);
+        var rulesGrid = Control<DataGrid>("Profiles");
+        Check(rulesGrid.Columns.Sum(x => x.ActualWidth) <= rulesGrid.ActualWidth + 1, "managed rules fit the minimum window without horizontal clipping");
         tabs.SelectedIndex = 3; Capture("IisCertManager-Logs", 1240, 820);
         Check(Control<TextBox>("Email").Text == "unsaved@example.com", "page navigation preserves settings draft");
         var logs = Control<TextBox>("Logs");
@@ -130,6 +143,13 @@ internal static class Program
             AliyunZone = "example.com", AccessKeyId = "fixture-id", AccessKeySecret = "fixture-secret" });
         var publicSettings = store.PublicSettings();
         Check(publicSettings.HasDnsCredentials && publicSettings.AccessKeyId == "" && publicSettings.AccessKeySecret == "", "DNS keys redacted");
+        store.LogError("deployment fixture", new InvalidOperationException("outer fixture", new COMException("fixture-id fixture-secret", unchecked((int)0x80070520))));
+        var diagnostic = DiagnosticReport.Create(store, new IisManager(store));
+        Check(diagnostic.Contains("0x80070520", StringComparison.OrdinalIgnoreCase) && diagnostic.Contains("COMException"),
+            "diagnostic report retains nested deployment HRESULT and exception details");
+        Check(!diagnostic.Contains("fixture-secret") && !diagnostic.Contains("fixture-id"), "diagnostic logs redact DNS credentials");
+        Check(diagnostic.Contains("Service identity:") && diagnostic.Contains("IIS bindings") && diagnostic.Contains("Recent Windows TLS events"),
+            "diagnostic report includes environment, IIS and TLS context");
         var bytes = File.ReadAllBytes(Path.Combine(path, "state.dpapi"));
         Check(!System.Text.Encoding.UTF8.GetString(bytes).Contains("fixture-secret"), "state encrypted on disk");
         Check(Open(path).Data.Settings.AccessKeySecret == "fixture-secret", "DPAPI state survives reopen");
@@ -210,6 +230,7 @@ internal static class Program
     }
     static async Task IisChecks(string scratch)
     {
+        Console.WriteLine("IIS deployment test identity: " + WindowsIdentity.GetCurrent().Name);
         var host = "fixture-" + Guid.NewGuid().ToString("N") + ".example.invalid";
         var siteName = "IisCertManager.Tests-" + Guid.NewGuid().ToString("N");
         var webRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows), "Temp", siteName);
@@ -239,13 +260,17 @@ internal static class Program
         using var rootPublic = X509CertificateLoader.LoadCertificate(root.RawData);
         var bundle = new X509Certificate2Collection(new[] { leaf, issuerPublic, rootPublic });
         const string password = "local-fixture-password";
-        var pfx = bundle.Export(X509ContentType.Pfx, password)!;
+        var pfxBuilder = new Certes.Pkcs.PfxBuilder(leaf.RawData, Certes.KeyFactory.FromPem(leafKey.ExportPkcs8PrivateKeyPem()));
+        pfxBuilder.AddIssuer(issuerPublic.RawData);
+        var pfx = pfxBuilder.Build("IIS Cert Manager - " + host, password);
         using var renewedKey = RSA.Create(2048);
         var renewedRequest = new CertificateRequest("CN=" + host, renewedKey, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         foreach (var extension in leafRequest.CertificateExtensions) renewedRequest.CertificateExtensions.Add(extension);
         using var renewedPublic = renewedRequest.Create(issuer, from, from.AddDays(60), RandomNumberGenerator.GetBytes(16));
         using var renewed = renewedPublic.CopyWithPrivateKey(renewedKey);
-        var renewedPfx = new X509Certificate2Collection(new[] { renewed, issuerPublic, rootPublic }).Export(X509ContentType.Pfx, password)!;
+        var renewedBuilder = new Certes.Pkcs.PfxBuilder(renewed.RawData, Certes.KeyFactory.FromPem(renewedKey.ExportPkcs8PrivateKeyPem()));
+        renewedBuilder.AddIssuer(issuerPublic.RawData);
+        var renewedPfx = renewedBuilder.Build("IIS Cert Manager - " + host, password);
         var state = Open(Path.Combine(scratch, "iis-state")); var iis = new IisManager(state);
         long siteId = 0;
         // Use a free port for HTTPS. HTTP-01 intentionally exercises the mandatory port 80 alongside IIS.
@@ -268,6 +293,14 @@ internal static class Program
             }
             var profile = new Profile { SiteId = siteId, Host = host, Ip = "*", Port = httpsPort, Domains = [host] };
             Check(iis.Read().Any(x => x.SiteId == siteId && x.Host == host && x.Protocol == "http"), "real IIS enumeration");
+            using (var emptyManager = new ServerManager())
+            {
+                var empty = emptyManager.Sites.First(x => x.Id == siteId).Bindings.Add($"*:{httpsPort}:{host}", "https");
+                empty.SslFlags = SslFlags.Sni;
+                emptyManager.CommitChanges();
+            }
+            Check(iis.Read().Single(x => x.SiteId == siteId && x.Protocol == "https").Thumbprint == null,
+                "existing SNI binding without a certificate reproduced");
             iis.Install(profile, pfx, password);
             Check(iis.Read().Any(x => x.SiteId == siteId && x.Protocol == "https" && x.Thumbprint == leaf.Thumbprint), "real IIS SNI certificate binding");
             var details = iis.Read().Single(x => x.SiteId == siteId && x.Protocol == "https");
@@ -307,7 +340,7 @@ internal static class Program
                 Check(nested.StatusCode == HttpStatusCode.NotFound, "nested challenge path rejected");
             }
             Check(await client.GetStringAsync($"http://{host}/probe.txt") == "iis-business-path", "IIS business path works after challenge cleanup");
-            async Task<bool> Presents(string thumbprint)
+            async Task<bool> Presents(string thumbprint, int? port = null)
             {
                 using var fresh = new HttpClient(new SocketsHttpHandler { UseProxy = false,
                     ConnectCallback = async (context, ct) =>
@@ -318,7 +351,7 @@ internal static class Program
                     },
                     SslOptions = new SslClientAuthenticationOptions { RemoteCertificateValidationCallback = (_, cert, _, _) => cert?.GetCertHashString() == thumbprint }
                 }) { Timeout = TimeSpan.FromSeconds(30) };
-                return await fresh.GetStringAsync($"https://{host}:{httpsPort}/probe.txt") == "iis-business-path";
+                return await fresh.GetStringAsync($"https://{host}:{port ?? httpsPort}/probe.txt") == "iis-business-path";
             }
             iis.Install(profile, renewedPfx, password);
             var replaced = iis.Read().Where(x => x.SiteId == siteId && x.Protocol == "https").ToArray();
@@ -340,6 +373,15 @@ internal static class Program
             Check(rejected && await Presents(renewed.Thumbprint), "invalid replacement leaves the active TLS certificate unchanged");
             iis.Install(profile, pfx, password);
             Check(await Presents(leaf.Thumbprint), "previous certificate can be redeployed for recovery");
+            var newPortProbe = new TcpListener(IPAddress.Loopback, 0);
+            newPortProbe.Start();
+            var newPort = ((IPEndPoint)newPortProbe.LocalEndpoint).Port;
+            newPortProbe.Stop();
+            var newBindingProfile = profile with { Id = Guid.NewGuid(), Port = newPort };
+            iis.Install(newBindingProfile, renewedPfx, password);
+            Check(iis.Read().Any(x => x.SiteId == siteId && x.Port == newPort && x.Protocol == "https" &&
+                x.Thumbprint == renewed.Thumbprint && x.SslFlags == 1), "new HTTPS binding is created with SNI and certificate together");
+            Check(await Presents(renewed.Thumbprint, newPort), "new SNI binding serves the correct certificate over TLS");
             Check(await client.GetStringAsync($"http://{host}/probe.txt") == "iis-business-path",
                 "HTTP business binding survives replacement and recovery");
         }

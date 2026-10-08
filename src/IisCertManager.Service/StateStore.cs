@@ -103,6 +103,7 @@ public sealed class StateStore
     }
     public void Log(string message)
     {
+        message = Redact(message);
         lock (logLock)
         {
             try
@@ -115,12 +116,19 @@ public sealed class StateStore
             { logger.LogWarning(e, "无法写入文件日志：{Message}", message); }
         }
     }
-    public string[] Logs()
+    public string Redact(string text)
+    {
+        foreach (var secret in new[] { Data.Settings.AccessKeyId, Data.Settings.AccessKeySecret })
+            if (!string.IsNullOrEmpty(secret)) text = text.Replace(secret, "[REDACTED]", StringComparison.Ordinal);
+        return text;
+    }
+    public void LogError(string stage, Exception error) => Log($"{stage}失败，HRESULT=0x{error.HResult:X8}{Environment.NewLine}{error}");
+    public string[] Logs(int limit = 120)
     {
         lock (logLock)
         {
             var path = Path.Combine(Root, "service.log");
-            return File.Exists(path) ? File.ReadLines(path).TakeLast(120).ToArray() : [];
+            return File.Exists(path) ? File.ReadLines(path).TakeLast(Math.Clamp(limit, 1, 2000)).ToArray() : [];
         }
     }
 }
