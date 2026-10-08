@@ -78,6 +78,17 @@ public sealed class ControlServer(StateStore store, IisManager iis, CertificateM
                 store.Log($"{p.Host}：托管规则已保存，自动续期 {(p.Enabled ? "开启" : "关闭")}。");
                 break;
             }
+            case "enabled":
+            {
+                var p = store.Data.Profiles.Single(x => x.Id == request.Id);
+                var old = p.Enabled;
+                var enabled = request.Enabled ?? throw new ArgumentException("缺少启停状态。");
+                if (enabled) certificates.Validate(p);
+                p.Enabled = enabled;
+                try { store.Save(); } catch { p.Enabled = old; throw; }
+                store.Log($"{p.Host}：自动续期已{(enabled ? "启用" : "暂停")}。");
+                break;
+            }
             case "delete":
             {
                 var p = store.Data.Profiles.Single(x => x.Id == request.Id);

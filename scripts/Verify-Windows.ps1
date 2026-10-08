@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 $ErrorActionPreference = 'Stop'
 $service = Get-Service IisCertManager
 if ($service.Status -ne 'Running') { throw 'IisCertManager service is not running.' }

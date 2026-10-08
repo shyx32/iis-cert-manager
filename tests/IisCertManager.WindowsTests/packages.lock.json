@@ -2,9 +2,13 @@
   "version": 1,
   "dependencies": {
     "net10.0-windows7.0": {
+      "BouncyCastle.Cryptography": {
+        "type": "Transitive",
+        "resolved": "2.7.0",
+        "contentHash": "U+12df8UEWHgBi04YVf/Lgi2dy3SItlIYvHjjEVa/BngCQIzDCDRBk50DDByCfDvSbe5pRNFr3b7UrVK2kMcLw=="
+      },
       "Certes": {
-        "type": "Direct",
-        "requested": "[4.1.0, )",
+        "type": "Transitive",
         "resolved": "4.1.0",
         "contentHash": "xlkcd2hCg397+bCUOvFWqXbPqsHW+WMYZTVutFfQT+04y5asJysCZbIOGnaa8E6PptBBzR+E+e8UZSFj9XlnDw==",
         "dependencies": {
@@ -12,43 +16,9 @@
         }
       },
       "DnsClient": {
-        "type": "Direct",
-        "requested": "[1.8.0, )",
+        "type": "Transitive",
         "resolved": "1.8.0",
         "contentHash": "RRwtaCXkXWsx0mmsReGDqCbRLtItfUbkRJlet1FpdciVhyMGKcPd57T1+8Jki9ojHlq9fntVhXQroOOgRak8DQ=="
-      },
-      "Microsoft.Extensions.Hosting.WindowsServices": {
-        "type": "Direct",
-        "requested": "[10.0.0, )",
-        "resolved": "10.0.0",
-        "contentHash": "4jFNSKTrGd2bHjIHY+TMqcB56gtIm91fNwfqWp2SMvVAvuweAnUMDWiai1CN4boM2s0zi4xVU9rWDLjIA58tDQ==",
-        "dependencies": {
-          "Microsoft.Extensions.Hosting": "10.0.0",
-          "Microsoft.Extensions.Logging.EventLog": "10.0.0",
-          "System.ServiceProcess.ServiceController": "10.0.0"
-        }
-      },
-      "Microsoft.Web.Administration": {
-        "type": "Direct",
-        "requested": "[11.1.0, )",
-        "resolved": "11.1.0",
-        "contentHash": "aVdukBSBsbUJKHvSpfgTnmm6HEOKKJ5l8HXh0F05t7bYMRUzViYD8knqcs55xjnVzyO0epHd+r4TgWt/sSyuQg==",
-        "dependencies": {
-          "NETStandard.Library": "1.6.0",
-          "System.Reflection.TypeExtensions": "4.4.0",
-          "System.ServiceProcess.ServiceController": "4.1.0"
-        }
-      },
-      "System.Security.Cryptography.ProtectedData": {
-        "type": "Direct",
-        "requested": "[10.0.0, )",
-        "resolved": "10.0.0",
-        "contentHash": "qy6C3gQRTrfhFfuiIYU1jNwWfFdJpBVo1BARW7jgMm1zTEm3LRzLLyOLJGaAuKE+nZCGkEP71y4rj9NWjqLGdQ=="
-      },
-      "BouncyCastle.Cryptography": {
-        "type": "Transitive",
-        "resolved": "2.7.0",
-        "contentHash": "U+12df8UEWHgBi04YVf/Lgi2dy3SItlIYvHjjEVa/BngCQIzDCDRBk50DDByCfDvSbe5pRNFr3b7UrVK2kMcLw=="
       },
       "Microsoft.Extensions.Configuration": {
         "type": "Transitive",
@@ -224,6 +194,16 @@
           "Microsoft.Extensions.Logging.Abstractions": "10.0.0"
         }
       },
+      "Microsoft.Extensions.Hosting.WindowsServices": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "4jFNSKTrGd2bHjIHY+TMqcB56gtIm91fNwfqWp2SMvVAvuweAnUMDWiai1CN4boM2s0zi4xVU9rWDLjIA58tDQ==",
+        "dependencies": {
+          "Microsoft.Extensions.Hosting": "10.0.0",
+          "Microsoft.Extensions.Logging.EventLog": "10.0.0",
+          "System.ServiceProcess.ServiceController": "10.0.0"
+        }
+      },
       "Microsoft.Extensions.Logging": {
         "type": "Transitive",
         "resolved": "10.0.0",
@@ -334,6 +314,16 @@
         "resolved": "1.0.1",
         "contentHash": "2G6OjjJzwBfNOO8myRV/nFrbTw5iA+DEm0N+qUqhrOmaVtn4pC77h38I1jsXGw5VH55+dPfQsqHD0We9sCl9FQ=="
       },
+      "Microsoft.Web.Administration": {
+        "type": "Transitive",
+        "resolved": "11.1.0",
+        "contentHash": "aVdukBSBsbUJKHvSpfgTnmm6HEOKKJ5l8HXh0F05t7bYMRUzViYD8knqcs55xjnVzyO0epHd+r4TgWt/sSyuQg==",
+        "dependencies": {
+          "NETStandard.Library": "1.6.0",
+          "System.Reflection.TypeExtensions": "4.4.0",
+          "System.ServiceProcess.ServiceController": "4.1.0"
+        }
+      },
       "NETStandard.Library": {
         "type": "Transitive",
         "resolved": "1.6.0",
@@ -352,6 +342,11 @@
         "resolved": "4.4.0",
         "contentHash": "dkmh/ySlwnXJp/1qYP9uyKkCK1CXR/REFzl7abHcArxBcV91mY2CgrrzSRA5Z/X4MevJWwXsklGRdR3A7K9zbg=="
       },
+      "System.Security.Cryptography.ProtectedData": {
+        "type": "Transitive",
+        "resolved": "10.0.0",
+        "contentHash": "qy6C3gQRTrfhFfuiIYU1jNwWfFdJpBVo1BARW7jgMm1zTEm3LRzLLyOLJGaAuKE+nZCGkEP71y4rj9NWjqLGdQ=="
+      },
       "System.ServiceProcess.ServiceController": {
         "type": "Transitive",
         "resolved": "10.0.0",
@@ -360,8 +355,25 @@
           "System.Diagnostics.EventLog": "10.0.0"
         }
       },
+      "iiscertmanager.client": {
+        "type": "Project",
+        "dependencies": {
+          "IisCertManager.Contracts": "[1.0.0, )"
+        }
+      },
       "iiscertmanager.contracts": {
         "type": "Project"
+      },
+      "iiscertmanager.service": {
+        "type": "Project",
+        "dependencies": {
+          "Certes": "[4.1.0, )",
+          "DnsClient": "[1.8.0, )",
+          "IisCertManager.Contracts": "[1.0.0, )",
+          "Microsoft.Extensions.Hosting.WindowsServices": "[10.0.0, )",
+          "Microsoft.Web.Administration": "[11.1.0, )",
+          "System.Security.Cryptography.ProtectedData": "[10.0.0, )"
+        }
       }
     }
   }

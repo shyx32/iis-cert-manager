@@ -23,13 +23,13 @@
 <StackPanel Grid.Row="2" Orientation="Horizontal"><Button Content="保存托管规则" Click="OnSaveProfile"/><Button Content="立即签发 / 更新绑定" Click="OnIssue" Background="#D9E8F7"/><TextBlock Text="首次请在“全局配置”保存邮箱与验证信息。" Foreground="#64748B" VerticalAlignment="Center"/></StackPanel>
 </Grid></TabItem>
 <TabItem Header="  托管与续期  "><Grid><Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
-<DataGrid x:Name="Profiles" SelectionChanged="OnProfileSelected"><DataGrid.Columns>
+<DataGrid x:Name="Profiles"><DataGrid.Columns>
 <DataGridTextColumn Header="站点" Binding="{Binding SiteName}" Width="120"/><DataGridTextColumn Header="主机名" Binding="{Binding Host}" Width="180"/>
 <DataGridCheckBoxColumn Header="自动" Binding="{Binding Enabled}" Width="55"/><DataGridTextColumn Header="验证" Binding="{Binding Mode}" Width="75"/>
 <DataGridTextColumn Header="证书到期" Binding="{Binding Expires, StringFormat=yyyy-MM-dd}" Width="100"/><DataGridTextColumn Header="状态" Binding="{Binding Status}" Width="*"/>
 <DataGridTextColumn Header="下次尝试 UTC" Binding="{Binding NextAttempt, StringFormat=MM-dd HH:mm}" Width="120"/>
 </DataGrid.Columns></DataGrid>
-<StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,14,0,0"><Button Content="编辑所选规则" Click="OnEditProfile"/><Button Content="签发所选规则" Click="OnIssueManaged"/><Button Content="移除托管" Click="OnDelete"/><TextBlock Text="移除后保留 IIS 绑定和已安装证书。" VerticalAlignment="Center" Foreground="#64748B"/></StackPanel>
+<StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,14,0,0"><Button Content="编辑所选规则" Click="OnEditProfile"/><Button Content="签发所选规则" Click="OnIssueManaged"/><Button Content="暂停 / 启用续期" Click="OnToggleRenewal"/><Button Content="移除托管" Click="OnDelete"/><TextBlock Text="移除后保留 IIS 绑定和已安装证书。" VerticalAlignment="Center" Foreground="#64748B"/></StackPanel>
 </Grid></TabItem>
 <TabItem Header="  全局配置  "><ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel MaxWidth="650" HorizontalAlignment="Left">
 <TextBlock Text="ACME 账户" FontSize="18" FontWeight="SemiBold"/><TextBlock Text="联系邮箱" Margin="0,14,0,0"/><TextBox x:Name="Email"/>

@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param([ValidateSet('win-x64','win-arm64')][string]$Runtime = 'win-x64',
       [string]$Version = '0.1.0-dev')
 $ErrorActionPreference = 'Stop'
@@ -13,12 +13,13 @@ $package = Join-Path $root 'artifacts/package'
 if (Test-Path $package) { Remove-Item $package -Recurse -Force }
 New-Item $package -ItemType Directory -Force | Out-Null
 foreach ($project in @('Service','Client')) {
-    Invoke-Dotnet publish "$root/src/IisCertManager.$project" -c Release "-p:Version=$Version" -r $Runtime --self-contained true -p:PublishSingleFile=false -o "$package/$($project.ToLowerInvariant())"
+    Invoke-Dotnet publish "$root/src/IisCertManager.$project" -c Release "-p:Version=$Version" -r $Runtime --self-contained true "-p:PublishSingleFile=false" -o "$package/$($project.ToLowerInvariant())"
 }
 Copy-Item "$root/scripts" "$package/scripts" -Recurse
 Copy-Item "$root/README.md" "$package/README.md"
 Copy-Item "$root/docs" "$package/docs" -Recurse
 Copy-Item "$root/VALIDATION.md" "$package/VALIDATION.md"
+Copy-Item "$root/REVIEW.md" "$package/REVIEW.md"
 $zip = Join-Path $root "artifacts/IisCertManager-$Runtime.zip"
 Compress-Archive "$package/*" $zip -Force
 $sourceZip = Join-Path $root 'artifacts/IisCertManager-source.zip'

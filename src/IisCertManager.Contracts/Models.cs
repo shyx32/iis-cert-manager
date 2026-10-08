@@ -43,12 +43,13 @@ public sealed record Profile
     public int Failures { get; set; }
 }
 public sealed record Snapshot(Settings Settings, List<SiteBinding> Bindings, List<Profile> Profiles, string[] Logs);
-public sealed record Request(string Action, Settings? Settings = null, Profile? Profile = null, Guid? Id = null);
+public sealed record Request(string Action, Settings? Settings = null, Profile? Profile = null, Guid? Id = null, bool? Enabled = null);
 public sealed record Response(bool Ok, string Message, Snapshot? Snapshot = null);
 public static class Policy
 {
     public static string Domain(string value, bool wildcard = false)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(value);
         value = value.Trim().TrimEnd('.').ToLowerInvariant();
         var star = wildcard && value.StartsWith("*.");
         if (star) value = value[2..];
@@ -85,6 +86,7 @@ public static class Policy
         var input = "POST&%2F&" + Encode(canonical);
         return Convert.ToBase64String(HMACSHA1.HashData(Encoding.UTF8.GetBytes(secret + "&"), Encoding.UTF8.GetBytes(input)));
     }
+    public static TimeSpan RetryDelay(int failures) => TimeSpan.FromMinutes(Math.Min(1440, 15 * Math.Pow(2, Math.Clamp(failures - 1, 0, 7))));
     public static bool Due(Profile p, Settings s, DateTimeOffset now) => p.Enabled && !s.Staging &&
         (p.NextAttempt == null || p.NextAttempt <= now) &&
         (p.Expires == null || p.Expires <= now.AddDays(s.RenewBeforeDays));

@@ -60,10 +60,12 @@ public sealed class IisManager(StateStore store)
     public void Install(Profile p, byte[] pfx, string password)
     {
         Validate(p); // 再次读取，防止签发期间绑定被修改。
-        using var cert = X509CertificateLoader.LoadPkcs12(pfx, password,
+        var bundle = X509CertificateLoader.LoadPkcs12Collection(pfx, password,
             X509KeyStorageFlags.MachineKeySet | X509KeyStorageFlags.PersistKeySet);
-        if (!cert.HasPrivateKey || cert.NotAfter.ToUniversalTime() <= DateTime.UtcNow)
-            throw new InvalidOperationException("证书没有私钥或已到期。");
+        try
+        {
+        var cert = bundle.Cast<X509Certificate2>().Single(x => x.HasPrivateKey);
+        CertificatePolicy.Validate(cert, p.Domains, DateTimeOffset.UtcNow);
         using var manager = new ServerManager();
         var site = manager.Sites.First(x => x.Id == p.SiteId);
         var information = BindingInfo(p);
@@ -74,10 +76,17 @@ public sealed class IisManager(StateStore store)
         var backup = Path.Combine(store.Root, "bindings"); Directory.CreateDirectory(backup);
         File.WriteAllText(Path.Combine(backup, $"{DateTime.UtcNow:yyyyMMddHHmmssfff}-{p.Id}.json"),
             JsonSerializer.Serialize(new { p.SiteId, p.SiteName, BindingInformation = information,
-                Existed = existing != null, Thumbprint = previousHash == null ? null : Convert.ToHexString(previousHash),
+                InstalledThumbprint = cert.Thumbprint, Existed = existing != null, Thumbprint = previousHash == null ? null : Convert.ToHexString(previousHash),
                 CertificateStore = previousStore, SslFlags = previousFlags }, Wire.Json));
         using var certStore = new X509Store(StoreName.My, StoreLocation.LocalMachine);
         certStore.Open(OpenFlags.ReadWrite);
+        // 将中间证书装入 CA 库，避免首个 TLS 握手依赖在线 AIA 下载。绝不新增根信任。
+        using (var intermediates = new X509Store(StoreName.CertificateAuthority, StoreLocation.LocalMachine))
+        {
+            intermediates.Open(OpenFlags.ReadWrite);
+            foreach (var issuer in bundle.Cast<X509Certificate2>().Where(x => !x.HasPrivateKey &&
+                !x.SubjectName.RawData.SequenceEqual(x.IssuerName.RawData))) intermediates.Add(issuer);
+        }
         certStore.Add(cert);
         try
         {
@@ -110,5 +119,7 @@ public sealed class IisManager(StateStore store)
         }
         p.Thumbprint = cert.Thumbprint;
         p.Expires = new DateTimeOffset(cert.NotAfter.ToUniversalTime());
+        }
+        finally { foreach (var certificate in bundle) certificate.Dispose(); }
     }
 }

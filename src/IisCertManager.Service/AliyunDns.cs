@@ -5,9 +5,39 @@ using DnsClient;
 using IisCertManager.Contracts;
 namespace IisCertManager.Service;
 public sealed record DnsLease(string RecordId, string Name, string Value);
-public sealed class AliyunDns(StateStore store, Settings settings) : IDisposable
+public interface IDnsProbe
 {
-    readonly HttpClient http = new() { Timeout = TimeSpan.FromSeconds(30) };
+    Task<bool> HasCname(string name, CancellationToken ct);
+    Task<bool> HasTxt(string name, string value, CancellationToken ct);
+}
+public sealed class PublicDnsProbe : IDnsProbe
+{
+    readonly LookupClient[] resolvers = new[] { "1.1.1.1", "8.8.8.8" }.Select(ip => new LookupClient(
+        new LookupClientOptions(IPAddress.Parse(ip)) { UseCache = false, Timeout = TimeSpan.FromSeconds(5), Retries = 1 })).ToArray();
+    public async Task<bool> HasCname(string name, CancellationToken ct)
+    {
+        foreach (var resolver in resolvers)
+            if ((await resolver.QueryAsync(name, QueryType.CNAME, cancellationToken: ct)).Answers.CnameRecords().Any()) return true;
+        return false;
+    }
+    public async Task<bool> HasTxt(string name, string value, CancellationToken ct)
+    {
+        foreach (var resolver in resolvers)
+        {
+            try
+            {
+                var answer = await resolver.QueryAsync(name, QueryType.TXT, cancellationToken: ct);
+                if (!answer.Answers.TxtRecords().Any(x => string.Concat(x.Text) == value)) return false;
+            }
+            catch (DnsResponseException) { return false; }
+        }
+        return true;
+    }
+}
+public sealed class AliyunDns(StateStore store, Settings settings, HttpClient? httpClient = null, IDnsProbe? dnsProbe = null) : IDisposable
+{
+    readonly HttpClient http = httpClient ?? new() { Timeout = TimeSpan.FromSeconds(30) };
+    readonly IDnsProbe probe = dnsProbe ?? new PublicDnsProbe();
     string Journal => Path.Combine(store.Root, "dns-cleanup.json");
     List<DnsLease> Leases() => File.Exists(Journal)
         ? JsonSerializer.Deserialize<List<DnsLease>>(File.ReadAllText(Journal), Wire.Json) ?? [] : [];
@@ -37,11 +67,8 @@ public sealed class AliyunDns(StateStore store, Settings settings) : IDisposable
     {
         var rr = Policy.RelativeRecord(name, settings.AliyunZone);
         // 不自动跟随 CNAME，避免修改错误 DNS 区域。
-        foreach (var resolver in Resolvers())
-        {
-            var answer = await resolver.QueryAsync(name, QueryType.CNAME, cancellationToken: ct);
-            if (answer.Answers.CnameRecords().Any()) throw new InvalidOperationException("_acme-challenge 存在 CNAME 委派，首版请移除委派或使用直接 TXT 记录。");
-        }
+        if (await probe.HasCname(name, ct))
+            throw new InvalidOperationException("_acme-challenge 存在 CNAME 委派，首版请移除委派或使用直接 TXT 记录。");
         var result = await Call("AddDomainRecord", new() { ["DomainName"] = settings.AliyunZone,
             ["RR"] = rr, ["Type"] = "TXT", ["Value"] = value, ["TTL"] = "600" }, ct);
         var lease = new DnsLease(result.GetProperty("RecordId").GetString()!, name, value);
@@ -76,28 +103,15 @@ public sealed class AliyunDns(StateStore store, Settings settings) : IDisposable
             }
         }
     }
-    static LookupClient[] Resolvers() => new[] { "1.1.1.1", "8.8.8.8" }.Select(ip => new LookupClient(
-        new LookupClientOptions(IPAddress.Parse(ip)) { UseCache = false, Timeout = TimeSpan.FromSeconds(5), Retries = 1 })).ToArray();
     public async Task WaitPropagation(DnsLease lease, CancellationToken ct)
     {
-        var resolvers = Resolvers();
         for (var attempt = 0; attempt < 60; attempt++)
         {
             ct.ThrowIfCancellationRequested();
-            var ready = true;
-            foreach (var resolver in resolvers)
-            {
-                try
-                {
-                    var answer = await resolver.QueryAsync(lease.Name, QueryType.TXT, cancellationToken: ct);
-                    ready &= answer.Answers.TxtRecords().Any(x => string.Concat(x.Text) == lease.Value);
-                }
-                catch (DnsResponseException) { ready = false; }
-            }
-            if (ready) return;
+            if (await probe.HasTxt(lease.Name, lease.Value, ct)) return;
             await Task.Delay(TimeSpan.FromSeconds(10), ct);
         }
         throw new TimeoutException("DNS TXT 尚未传播至两个公共解析器；保留现有 HTTPS 证书，请检查 DNS/防火墙后重试。");
     }
-    public void Dispose() => http.Dispose();
+    public void Dispose() { if (httpClient == null) http.Dispose(); }
 }

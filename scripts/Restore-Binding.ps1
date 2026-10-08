@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 [CmdletBinding()]
 param([Parameter(Mandatory)][string]$Backup)
 $ErrorActionPreference = 'Stop'
@@ -14,6 +14,10 @@ try {
     $site = @($manager.Sites | Where-Object Id -eq $data.SiteId)[0]
     if (-not $site) { throw 'Original IIS site no longer exists.' }
     $binding = @($site.Bindings | Where-Object { $_.Protocol -eq 'https' -and $_.BindingInformation -eq $data.BindingInformation })[0]
+    if ($binding -and $data.InstalledThumbprint) {
+        $currentThumbprint = [BitConverter]::ToString($binding.CertificateHash).Replace('-', '')
+        if ($currentThumbprint -ne $data.InstalledThumbprint) { throw 'Binding was changed after this deployment; inspect and restore manually.' }
+    }
     if ($data.Existed) {
         if (-not $binding) { throw 'Binding no longer exists; restore manually after review.' }
         if (-not $data.Thumbprint) { throw 'Snapshot has no certificate thumbprint.' }

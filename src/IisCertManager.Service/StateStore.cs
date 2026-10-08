@@ -12,23 +12,54 @@ public sealed class PersistentState
 }
 public sealed class StateStore
 {
-    public string Root { get; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "IisCertManager");
+    public string Root { get; }
+    readonly ILogger<StateStore> logger;
     public PersistentState Data { get; }
     public SemaphoreSlim Gate { get; } = new(1, 1);
     readonly object logLock = new();
-    public StateStore()
+    public StateStore(ILogger<StateStore> logger, string? dataRoot = null)
     {
-        Directory.CreateDirectory(Root);
+        this.logger = logger;
+        Root = dataRoot ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "IisCertManager");
+        var directory = new DirectoryInfo(Root);
+        var administrators = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null);
+        var system = new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null);
+        if (directory.Exists)
+        {
+            if ((directory.Attributes & FileAttributes.ReparsePoint) != 0) throw new InvalidDataException("配置目录不能是链接或目录联接。");
+            var owner = directory.GetAccessControl(AccessControlSections.Owner).GetOwner(typeof(SecurityIdentifier));
+            if (!administrators.Equals(owner) && !system.Equals(owner))
+                throw new InvalidDataException("配置目录所有者不可信，请由管理员检查并重新创建该目录。");
+        }
         var acl = new DirectorySecurity();
+        acl.SetOwner(administrators);
         acl.SetAccessRuleProtection(true, false);
         foreach (var sid in new[] { WellKnownSidType.LocalSystemSid, WellKnownSidType.BuiltinAdministratorsSid })
             acl.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(sid, null), FileSystemRights.FullControl,
                 InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
-        new DirectoryInfo(Root).SetAccessControl(acl);
+        if (!directory.Exists) directory.Create(acl); // 用受限 ACL 原子创建，避免普通用户预置状态目录。
+        else directory.SetAccessControl(acl);
         var path = Path.Combine(Root, "state.dpapi");
-        Data = File.Exists(path) ? JsonSerializer.Deserialize<PersistentState>(Unprotect(File.ReadAllBytes(path)), Wire.Json)
-            ?? throw new InvalidDataException("状态文件无效，请恢复备份。") : new();
+        if (!File.Exists(path))
+        {
+            Data = File.Exists(path + ".bak") ? Load(path + ".bak") : new();
+            if (File.Exists(path + ".bak")) { Save(); Log("主状态文件缺失，已恢复加密备份。"); }
+        }
+        else
+        {
+            try { Data = Load(path); }
+            catch (Exception e) when (e is CryptographicException or JsonException or InvalidDataException)
+            {
+                // 不静默重置账户/规则；仅恢复可验证的同机加密备份。
+                Data = Load(path + ".bak");
+                File.Move(path, path + ".corrupt-" + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff"));
+                Save();
+                Log("主状态文件损坏，已恢复加密备份；请复核最近一次配置修改。");
+            }
+        }
     }
+    static PersistentState Load(string path) => JsonSerializer.Deserialize<PersistentState>(Unprotect(File.ReadAllBytes(path)), Wire.Json)
+        ?? throw new InvalidDataException("状态文件无效，请恢复备份。");
     public static byte[] Protect(string value) => ProtectedData.Protect(Encoding.UTF8.GetBytes(value), null, DataProtectionScope.LocalMachine);
     public static string Unprotect(byte[] value) => Encoding.UTF8.GetString(ProtectedData.Unprotect(value, null, DataProtectionScope.LocalMachine));
     public void Save()
@@ -74,9 +105,14 @@ public sealed class StateStore
     {
         lock (logLock)
         {
-            var path = Path.Combine(Root, "service.log");
-            if (File.Exists(path) && new FileInfo(path).Length > 2_000_000) File.Move(path, path + ".1", true);
-            File.AppendAllText(path, $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}  {message}{Environment.NewLine}");
+            try
+            {
+                var path = Path.Combine(Root, "service.log");
+                if (File.Exists(path) && new FileInfo(path).Length > 2_000_000) File.Move(path, path + ".1", true);
+                File.AppendAllText(path, $"{DateTimeOffset.Now:yyyy-MM-dd HH:mm:ss zzz}  {message}{Environment.NewLine}");
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            { logger.LogWarning(e, "无法写入文件日志：{Message}", message); }
         }
     }
     public string[] Logs()

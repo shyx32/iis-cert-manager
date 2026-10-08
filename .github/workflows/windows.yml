@@ -16,6 +16,9 @@ jobs:
           dotnet-version: '10.0.x'
       - shell: pwsh
         run: ./scripts/Build.ps1
+      - name: Native Windows and IIS checks
+        shell: pwsh
+        run: ./scripts/Test-Windows.ps1
       - uses: actions/upload-artifact@v4
         with:
           name: IisCertManager-win-x64

@@ -34,7 +34,11 @@ public sealed class CertificateManager(StateStore store, IisManager iis)
             await dns.Cleanup(ct);
             var keyPath = Path.Combine(store.Root, settings.Staging ? "account-staging.dpapi" : "account-production.dpapi");
             var key = File.Exists(keyPath) ? KeyFactory.FromPem(StateStore.Unprotect(File.ReadAllBytes(keyPath))) : KeyFactory.NewKey(KeyAlgorithm.ES256);
-            if (!File.Exists(keyPath)) File.WriteAllBytes(keyPath, StateStore.Protect(key.ToPem()));
+            if (!File.Exists(keyPath))
+            {
+                File.WriteAllBytes(keyPath + ".tmp", StateStore.Protect(key.ToPem()));
+                File.Move(keyPath + ".tmp", keyPath);
+            }
             var acme = new AcmeContext(settings.Staging ? WellKnownServers.LetsEncryptStagingV2 : WellKnownServers.LetsEncryptV2, key);
             await acme.NewAccount(settings.Email, true).WaitAsync(ct);
             var order = await acme.NewOrder(p.Domains).WaitAsync(ct);
@@ -110,7 +114,7 @@ public sealed class CertificateManager(StateStore store, IisManager iis)
         catch (Exception error)
         {
             p.Failures++;
-            p.NextAttempt = DateTimeOffset.UtcNow.AddMinutes(Math.Min(1440, 15 * Math.Pow(2, Math.Min(p.Failures - 1, 7))));
+            p.NextAttempt = DateTimeOffset.UtcNow.Add(Policy.RetryDelay(p.Failures));
             var message = error is OperationCanceledException ? "操作超时或服务正在停止" : error.Message;
             p.Status = "失败：" + message; store.Save();
             store.Log($"{p.Host}：{p.Status}；下次尝试 {p.NextAttempt:O}。");

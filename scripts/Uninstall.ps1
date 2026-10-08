@@ -1,4 +1,4 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 [CmdletBinding()]
 param([string]$InstallRoot = "$env:ProgramFiles\IisCertManager")
 $ErrorActionPreference = 'Stop'

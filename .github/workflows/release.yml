@@ -49,6 +49,9 @@ jobs:
         env:
           RELEASE_VERSION: ${{ steps.version.outputs.version }}
         run: ./scripts/Build.ps1 -Version $env:RELEASE_VERSION
+      - name: Native Windows and IIS checks
+        shell: pwsh
+        run: ./scripts/Test-Windows.ps1
       - name: Preserve build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -70,7 +73,7 @@ jobs:
 
           下载 IisCertManager-win-x64.zip，在 Windows 管理员 PowerShell 中运行 scripts/Install.ps1。包内附带 .NET 运行时、使用说明及验收步骤。SHA256SUMS.txt 用于校验下载文件。
 
-          本版本由 Windows CI 编译并执行核心逻辑检查。实际 IIS/HTTP.sys、真实域名签发、公网 TLS 与无人值守续期仍需在目标服务器验收。程序尚未进行 Authenticode 签名。
+          本版本由 Windows CI 编译并执行核心逻辑、原生 IIS/TLS、HTTP.sys、DPAPI 和服务安装检查。真实域名签发、公网 TLS 与长时间无人值守续期仍需在目标服务器验收。程序尚未进行 Authenticode 签名。
 
           Source commit: $env:GITHUB_SHA
           Build: https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID

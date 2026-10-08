@@ -9,7 +9,7 @@ Windows 原生 WPF 客户端 + Windows Service。两者安装在同一台 IIS �
 - 枚举 IIS 站点与 HTTP/HTTPS 绑定：站点状态、目录、主机名、IP、端口、证书指纹、到期时间。
 - Let's Encrypt ACME v2 签发；HTTP-01、阿里云 DNS-01；SAN 和泛域名证书。
 - 自动模式：阿里云主域及密钥完整时使用 DNS-01，否则使用 HTTP-01。DNS 验证失败会记录错误，不会悄悄切换验证方式。
-- 正式证书导入 `LocalMachine\My`，创建或更新所选站点的 HTTPS SNI 绑定，保留其他绑定及旧证书。
+- 正式证书导入 `LocalMachine\My`、中间证书导入 `LocalMachine\CA`（不新增根信任），校验 SAN/有效期/EKU 后创建或更新所选站点的 HTTPS SNI 绑定，保留其他绑定及旧证书。
 - 每 15 分钟检查托管规则；默认到期前 30 天续期。失败按 15、30、60 分钟等递增重试，最多间隔 24 小时。
 - 测试 CA 默认开启：可以验证完整签发流程，但测试证书不会安装或绑定，也不会自动周期签发。
 - Windows DPAPI 加密配置与 ACME 账户私钥；配置目录仅管理员/SYSTEM 可读写；接口不回传 DNS 密钥；客户端验证管道服务进程来自同一安装目录。
@@ -36,7 +36,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install.ps1
 5. 使用 DNS-01 时填写阿里云 DNS 主域，例如 `example.com`、RAM AccessKey ID 和 Secret；留空已有密钥表示保留。保存全局配置。
 6. 在“IIS 站点与证书”选择一个有主机名的绑定；填写证书域名、验证方式、目标 HTTPS 端口。证书必须包含或覆盖所选绑定主机名。
 7. 点击“立即签发 / 更新绑定”。测试成功后，关闭测试 CA 并保存全局配置，再签发正式证书。
-8. 勾选自动续期的规则会由后台持续处理。**正式 CA 下保存启用的托管规则，即授权后台自动签发和部署该规则。** 可在“托管与续期”编辑、暂停（取消自动续期后保存）或移除规则。
+8. 勾选自动续期的规则会由后台持续处理。**正式 CA 下保存启用的托管规则，即授权后台自动签发和部署该规则。** 可在“托管与续期”编辑、使用“暂停 / 启用续期”按钮暂停或恢复、或移除规则。即使原 IIS 绑定已删除，也可以直接暂停规则。
 
 每条规则更新一个具体 IIS 主机名/IP/HTTPS 端口。SAN 列表不会自动生成其他域名的 IIS 绑定；需要部署到另一个绑定时，为它建立另一条规则。新建规则即使原来已有第三方证书，也会按托管配置签发新证书。
 
@@ -73,6 +73,7 @@ src/IisCertManager.Contracts   配置/命令/返回模型，域名与验证方�
 src/IisCertManager.Service     IIS、ACME、DNS/HTTP 验证、续期、持久化、命名管道服务
 src/IisCertManager.Client      WPF 原生界面
 tests/IisCertManager.Tests    无第三方测试框架的核心逻辑检查
+tests/IisCertManager.WindowsTests Windows 原生 DPAPI、模拟 DNS API、IIS/TLS、HTTP.sys、WPF 检查
 scripts/                      构建、安装、卸载、Windows 检查、绑定恢复
 ```
 
@@ -80,7 +81,7 @@ scripts/                      构建、安装、卸载、Windows 检查、绑定
 
 ## GitHub 自动打包与版本发布
 
-- 推送到 `main` 或提交 PR：Windows Actions 自动编译、执行核心检查，打包 Windows 自包含程序、源码包和 `SHA256SUMS.txt`，保存为 Actions Artifact。
+- 推送到 `main` 或提交 PR：Windows Actions 自动编译、执行核心检查和原生 Windows/IIS 检查，打包 Windows 自包含程序、源码包和 `SHA256SUMS.txt`，保存为 Actions Artifact。原生检查会在一次性 Windows runner 上启用 IIS，创建并清理临时站点/本地测试证书，验证安装、升级和卸载。
 - 推送版本标签：自动创建 GitHub Release 并上传上述三项文件。含后缀的版本（如 `v0.1.0-beta.1`）自动标记为预发布，正式版本（如 `v0.1.0`）正常发布。
 - 手动发布：仓库 Actions → **Publish release** → Run workflow，选择源码分支/标签，输入不带 `v` 的版本号。已有标签必须指向本次构建提交；已发布 Release 不会被覆盖。
 - 可执行程序内的产品版本跟随 Release 版本；发布说明记录确切源码 SHA 和构建链接。
@@ -96,14 +97,14 @@ git push origin v0.1.0-beta.1
 ## 状态和恢复
 
 - 程序默认安装于 `%ProgramFiles%\IisCertManager`。
-- 配置及私钥位于 `%ProgramData%\IisCertManager`：`state.dpapi`、`state.dpapi.bak`、`account-*.dpapi`。DPAPI 绑定当前 Windows 机器；不可直接迁移到另一台服务器解密。
+- 配置及私钥位于 `%ProgramData%\IisCertManager`：`state.dpapi`、`state.dpapi.bak`、`account-*.dpapi`。状态主文件损坏或缺失时恢复可验证的同机加密备份，损坏文件保留用于诊断；无法恢复时拒绝静默清空配置。DPAPI 绑定当前 Windows 机器；不可直接迁移到另一台服务器解密。
 - `service.log` 保留近期日志，单文件约 2 MB 后轮换，另保留一个旧文件。
 - `bindings/*.json` 记录每次正式部署前的原 HTTPS 绑定。旧证书和私钥不会自动清理。
 - `dns-cleanup.json` 为尚需清理的 TXT 记录。进程在 DNS API 成功、清理日志尚未落盘的极短窗口崩溃时，可能遗留 TXT；请根据 `_acme-challenge` 记录人工检查。
 - 签发过程中关闭客户端，不会取消后台任务；重新打开/刷新查看结果。服务签发期间串行处理命令，其他请求可能等待或提示繁忙。
 - 外部管理员修改托管规则关联的 IIS 绑定前，请先关闭该规则自动续期，避免后续续期再次覆盖。
 
-手工恢复原绑定：
+手工恢复原绑定（若部署后证书已被另外修改，脚本拒绝覆盖，需人工审查）：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Restore-Binding.ps1 `
@@ -122,7 +123,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Restore-Binding.ps
 
 ## 验证记录与上线验收
 
-本次已完成 macOS 上的 .NET 10 交叉编译和 30 项核心规则检查；Windows 自包含程序已打包。**尚未在 Windows 执行界面、安装脚本、IIS COM/HTTP.sys 操作，尚未使用真实域名/阿里云凭据完成 CA 签发或公网 TLS 验收。** 发布包未做 Authenticode 签名，首版应先用于测试服务器验收。
+本地验证包括 .NET 10 交叉编译、44 项核心规则检查和 PowerShell 脚本/工作流语法解析。Windows CI 另外执行 DPAPI、目录 ACL、模拟阿里云 RPC、真实 IIS SNI/TLS、HTTP.sys 与 IIS 共存、WPF 窗口构造、服务安装/升级/卸载检查；以对应源码提交的 Actions 结果为准。**真实域名/阿里云凭据、CA 签发、公网 TLS 和长时间无人值守续期仍须在目标服务器验收。** 发布包未做 Authenticode 签名，首版以预发布交付。
 
 Windows 管理员可执行 `scripts/Verify-Windows.ps1` 检查服务、命名管道、IIS 枚举与密钥脱敏。正式验收请完成：
 

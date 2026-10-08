@@ -57,7 +57,6 @@ public partial class MainWindow : Window
         HttpsPort.Text = (p?.Port ?? (row.Protocol == "https" ? row.Port : 443)).ToString();
         AutoRenew.IsChecked = p?.Enabled ?? true;
     }
-    void OnProfileSelected(object sender, SelectionChangedEventArgs e) { }
     async void OnSaveSettings(object sender, RoutedEventArgs e)
     {
         if (!int.TryParse(RenewDays.Text, out var days)) { Status.Text = "续期提前天数必须为整数。"; return; }
@@ -99,6 +98,11 @@ public partial class MainWindow : Window
         Sites.SelectedItem = binding; editingId = p.Id;
         Domains.Text = string.Join(", ", p.Domains); Mode.SelectedIndex = (int)p.Mode;
         HttpsPort.Text = p.Port.ToString(); AutoRenew.IsChecked = p.Enabled; Tabs.SelectedIndex = 0;
+    }
+    async void OnToggleRenewal(object sender, RoutedEventArgs e)
+    {
+        if (Profiles.SelectedItem is Profile p) await Call(new("enabled", Id: p.Id, Enabled: !p.Enabled));
+        else Status.Text = "请选择托管规则。";
     }
     async void OnDelete(object sender, RoutedEventArgs e)
     {

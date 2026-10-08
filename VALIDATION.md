@@ -1,12 +1,9 @@
-# 验证记录
+# 验证范围
 
-- .NET SDK：10.0.401（macOS arm64 交叉编译）。
-- 完整解决方案 Release 编译通过，0 错误、0 警告。
-- 30 项核心逻辑检查通过：验证方式选择、泛域名限制、域名校验、DNS 主域边界、阿里云 POST 签名、续期窗口、失败重试门限、IPC JSON。
-- 最终客户端和后台服务均成功发布为 win-x64 自包含 EXE；客户端为 PE32+ GUI，服务为 PE32+ console。
-- XAML、项目 XML、manifest、RAM 策略 JSON 均可解析。
-- 未在 Windows 运行安装/卸载/回滚脚本、WPF 界面、命名管道身份校验、IIS COM 或 HTTP.sys。
-- 未完成真实阿里云 DNS、Let's Encrypt staging/production、证书链、外部 TLS 握手及后台定时续期验收。
-- GitHub Windows CI 状态见 https://github.com/shyx32/iis-cert-manager/actions ；发布程序未进行 Authenticode 签名。
+- 本地：.NET SDK 10.0.401 完整解决方案交叉编译；44 项核心逻辑检查；PowerShell 7.6.6 解析安装/恢复/打包脚本及工作流内嵌脚本。
+- Windows CI：编译、核心规则、DPAPI 状态保存和损坏备份恢复、目录权限与所有者、模拟阿里云 RPC/签名/清理日志、真实 IIS SNI 绑定和 TLS 握手、证书链安装和 SAN 拒绝、HTTP.sys 验证路径与 IIS 业务路径共存、WPF 资源和窗口构造、服务安装/升级/控制管道/卸载。
+- Windows 检查的执行结果以对应源码 SHA 的 Actions 为准：https://github.com/shyx32/iis-cert-manager/actions 。Release 仅在其原生检查成功后创建。
+- 未覆盖：真实阿里云账户 API、真实 CA 签发、公网 DNS/WAF/IPv6/代理拓扑、长时间到期调度和实际用户桌面交互。
+- 发布包未做 Authenticode 签名。首次版本使用预发布标签，在业务服务器投用前完成 README 的环境验收。
 
-实际运行验收方法见 README.md。
+完整复核记录见 REVIEW.md，安装及验收说明见 README.md。

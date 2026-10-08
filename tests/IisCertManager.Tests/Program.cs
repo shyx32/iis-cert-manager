@@ -2,6 +2,7 @@ using IisCertManager.Contracts;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Security.Cryptography.X509Certificates;
 var count = 0;
 void Check(bool value, string name) { if (!value) throw new Exception("FAIL " + name); Console.WriteLine("PASS " + name); count++; }
 void Reject(Action action, string name)
@@ -37,4 +38,39 @@ Check(!Policy.Due(p with { Expires = now.AddDays(60) }, s, now), "fresh certific
 Check(Policy.Due(p with { Expires = null }, s, now), "unissued managed rule due");
 var req = new Request("profile", Profile: p);
 Check(JsonSerializer.Deserialize<Request>(JsonSerializer.Serialize(req, Wire.Json), Wire.Json)?.Profile?.Id == p.Id, "IPC JSON roundtrip");
+Check(Policy.RetryDelay(1) == TimeSpan.FromMinutes(15), "first failure retries after 15 minutes");
+Check(Policy.RetryDelay(2) == TimeSpan.FromMinutes(30), "second failure retries after 30 minutes");
+Check(Policy.RetryDelay(8) == TimeSpan.FromHours(24), "retry delay capped at 24 hours");
+Check(Policy.RetryDelay(int.MaxValue) == TimeSpan.FromHours(24), "large failure count cannot overflow backoff");
+Check(Policy.Due(p with { Expires = now.AddDays(30), NextAttempt = now }, s, now), "renewal starts exactly at configured boundary");
+Check(!Policy.Due(p with { Expires = now.AddDays(30).AddTicks(1) }, s, now), "certificate just outside window is not due");
+Check(Policy.Domain("bücher.example") == "xn--bcher-kva.example", "international domain normalized");
+Reject(() => Policy.Domain(" "), "empty host rejected");
+using (var key = RSA.Create(2048))
+{
+    var csr = new CertificateRequest("CN=www.example.com", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+    var san = new SubjectAlternativeNameBuilder(); san.AddDnsName("www.example.com"); san.AddDnsName("*.example.com");
+    csr.CertificateExtensions.Add(san.Build());
+    csr.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(new OidCollection { new Oid("1.3.6.1.5.5.7.3.1") }, false));
+    using var cert = csr.CreateSelfSigned(now.AddMinutes(-1), now.AddDays(30));
+    CertificatePolicy.Validate(cert, ["www.example.com", "*.example.com"], now);
+    Check(true, "valid server certificate and all SAN accepted");
+    void RejectCert(X509Certificate2 candidate, string[] domains, DateTimeOffset at, string label)
+    {
+        try { CertificatePolicy.Validate(candidate, domains, at); }
+        catch (InvalidOperationException) { Check(true, label); return; }
+        throw new Exception("FAIL " + label);
+    }
+    RejectCert(cert, ["other.example.com"], now, "missing SAN blocks deployment");
+    RejectCert(cert, ["www.example.com"], now.AddDays(31), "expired certificate blocks deployment");
+    RejectCert(cert, ["www.example.com"], now.AddMinutes(-2), "future certificate blocks deployment");
+    var client = new CertificateRequest("CN=www.example.com", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+    client.CertificateExtensions.Add(san.Build());
+    client.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(new OidCollection { new Oid("1.3.6.1.5.5.7.3.2") }, false));
+    using var clientCert = client.CreateSelfSigned(now.AddMinutes(-1), now.AddDays(30));
+    RejectCert(clientCert, ["www.example.com"], now, "client-only EKU blocks server deployment");
+    var noSan = new CertificateRequest("CN=www.example.com", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+    using var noSanCert = noSan.CreateSelfSigned(now.AddMinutes(-1), now.AddDays(30));
+    RejectCert(noSanCert, ["www.example.com"], now, "CN alone cannot replace a SAN");
+}
 Console.WriteLine($"{count} checks passed.");
