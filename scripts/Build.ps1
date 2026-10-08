@@ -23,8 +23,33 @@ Copy-Item "$root/REVIEW.md" "$package/REVIEW.md"
 $zip = Join-Path $root "artifacts/IisCertManager-$Runtime.zip"
 Compress-Archive "$package/*" $zip -Force
 $sourceZip = Join-Path $root 'artifacts/IisCertManager-source.zip'
-& git -C $root archive --format=zip --prefix=IisCertManager/ -o $sourceZip HEAD
-if ($LASTEXITCODE -ne 0) { throw 'Source archive failed.' }
+$hasRepository = $false
+if ((Test-Path -LiteralPath (Join-Path $root '.git')) -and (Get-Command git -ErrorAction SilentlyContinue)) {
+    & git -C $root rev-parse --git-dir 2>$null | Out-Null
+    $hasRepository = $LASTEXITCODE -eq 0
+}
+if ($hasRepository) {
+    & git -C $root archive --format=zip --prefix=IisCertManager/ -o $sourceZip HEAD
+    if ($LASTEXITCODE -ne 0) { throw 'Source archive failed.' }
+} else {
+    # Release source archives do not contain .git. Keep them buildable, and exclude build/runtime secrets.
+    $sourceStage = Join-Path $root 'artifacts/source/IisCertManager'
+    if (Test-Path $sourceStage) { Remove-Item $sourceStage -Recurse -Force }
+    New-Item $sourceStage -ItemType Directory -Force | Out-Null
+    $sourcePrefix = (Get-Item $root).FullName.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    $sourceFiles = Get-ChildItem $root -Recurse -File -Force | Where-Object {
+        $relative = $_.FullName.Substring($sourcePrefix.Length)
+        $relative -notmatch '(^|[\\/])(bin|obj|artifacts|\.git|\.vs)([\\/]|$)' -and
+        ($_.Extension -in @('.cs','.csproj','.sln','.xaml','.manifest','.props','.targets','.md','.yml','.yaml','.ps1') -or
+         $_.Name -in @('.gitignore','.gitattributes','packages.lock.json','aliyun-ram-policy.json'))
+    }
+    foreach ($file in $sourceFiles) {
+        $target = Join-Path $sourceStage ($file.FullName.Substring($sourcePrefix.Length))
+        New-Item ([IO.Path]::GetDirectoryName($target)) -ItemType Directory -Force | Out-Null
+        Copy-Item -LiteralPath $file.FullName -Destination $target
+    }
+    Compress-Archive -Path $sourceStage -DestinationPath $sourceZip -Force
+}
 $hashes = @($zip, $sourceZip) | ForEach-Object {
     $hash = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant()
     "$hash  $([IO.Path]::GetFileName($_))"
