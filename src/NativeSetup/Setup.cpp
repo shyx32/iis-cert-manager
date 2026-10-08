@@ -119,7 +119,7 @@ LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lpa
     case WM_COMMAND:
         if (LOWORD(wparam) == 1 && !busy) {
             if (installed) {
-                const auto client = ProgramFiles() + L"\\IisCertManager\\client\\\IisCertManager.Client.exe";
+                const auto client = ProgramFiles() + L"\\IisCertManager\\client\\IisCertManager.Client.exe";
                 const auto result = reinterpret_cast<INT_PTR>(ShellExecuteW(window, L"open", client.c_str(), nullptr, nullptr, SW_SHOWNORMAL));
                 if (result <= 32) MessageBoxW(window, L"无法启动管理界面，请从桌面快捷方式重试。", L"IIS 证书管家", MB_OK | MB_ICONERROR);
                 else DestroyWindow(window);
