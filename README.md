@@ -77,8 +77,8 @@ scripts/                      构建、安装、卸载、Windows 检查、绑定
 ## GitHub 自动打包与版本发布
 
 - 推送到 `main` 或提交 PR：Windows Actions 自动编译、执行核心检查和原生 Windows/IIS 检查，打包 Windows 自包含程序、源码包和 `SHA256SUMS.txt`，保存为 Actions Artifact。原生检查会在一次性 Windows runner 上启用 IIS，创建并清理临时站点/本地测试证书，通过发布的 EXE 安装程序验证安装、升级和卸载。
-- 推送版本标签：自动创建 GitHub Release 并上传上述三项文件。含后缀的版本（如 `v0.1.0-beta.1`）自动标记为预发布，正式版本（如 `v0.1.0`）正常发布。
-- 手动发布：仓库 Actions → **Publish release** → Run workflow，选择源码分支/标签，输入不带 `v` 的版本号。已有标签必须指向本次构建提交；已发布 Release 不会被覆盖。
+- 推送版本标签：自动创建 GitHub Release 并上传安装 EXE、程序 ZIP、源码 ZIP 和校验文件。含后缀的版本（如 `v0.1.0-beta.1`）自动标记为预发布，正式版本（如 `v0.1.0`）正常发布。
+- 手动发布：仓库 Actions → **Publish release** → Run workflow，先推送版本标签，选择该标签并输入不带 `v` 的版本号。标签必须指向本次构建提交；已发布 Release 不会被覆盖。
 - 可执行程序内的产品版本跟随 Release 版本；发布说明记录确切源码 SHA 和构建链接。
 
 ```powershell
