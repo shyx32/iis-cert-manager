@@ -70,16 +70,18 @@ jobs:
           IS_PRERELEASE: ${{ steps.version.outputs.prerelease }}
         run: |
           $ErrorActionPreference = 'Stop'
-          $notes = @"
-          Windows 原生 WPF 客户端 + 本机 Windows 服务；支持 IIS 站点/证书读取、ACME HTTP-01、阿里云 DNS-01、HTTPS 绑定与自动续期。
+          $notes = @'
+          IIS 证书管家，自动管理 Windows IIS 网站的 HTTPS 证书。
 
-          下载 IisCertManager-Setup-win-x64.exe，双击运行并允许管理员权限，然后点击“安装 / 更新”。无需解压或输入命令。包内附带 .NET 运行时、使用说明及验收步骤。SHA256SUMS.txt 用于校验下载文件。
+          - 自动读取 IIS 网站、域名绑定和 SSL 证书。
+          - 支持 HTTP-01 和阿里云 DNS-01 自动签发；未配置 DNS 时默认使用 HTTP-01。
+          - 自动部署证书并配置 HTTPS 绑定。
+          - 支持证书自动续期，默认到期前 30 天续签，可调整为 7–60 天。
+          - 中文管理界面，支持查看证书状态、管理续期规则和操作日志。
+          - 后台持续运行，关闭界面后仍可自动续期。
 
-          本版本由 Windows CI 编译并执行核心逻辑、原生 IIS/TLS、HTTP.sys、DPAPI 和服务安装检查。真实域名签发、公网 TLS 与长时间无人值守续期仍需在目标服务器验收。程序尚未进行 Authenticode 签名。
-
-          Source commit: $env:GITHUB_SHA
-          Build: https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID
-          "@
+          下载 `IisCertManager-Setup-win-x64.exe`，双击运行并点击“安装 / 更新”即可。
+          '@
           $notes | Set-Content -Encoding utf8 artifacts/release-notes.md
           gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) { throw 'Release already exists; published releases are not overwritten. Use a new version.' }
