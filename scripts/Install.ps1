@@ -17,6 +17,9 @@ if (-not $InstallRoot.StartsWith($programRoot + [IO.Path]::DirectorySeparatorCha
 if ((Test-Path $InstallRoot) -and ((Get-Item $InstallRoot).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
     throw 'InstallRoot cannot be a junction or symbolic link.'
 }
+if (Get-Process -Name 'IisCertManager.Client' -ErrorAction SilentlyContinue) {
+    throw 'Close IIS Certificate Manager before updating, then run the installer again.'
+}
 $service = Get-Service IisCertManager -ErrorAction SilentlyContinue
 if ($service) { Stop-Service IisCertManager; $service.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(60)) }
 New-Item $InstallRoot -ItemType Directory -Force | Out-Null

@@ -17,6 +17,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IisCertManager.Tests", "tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IisCertManager.WindowsTests", "tests\IisCertManager.WindowsTests\IisCertManager.WindowsTests.csproj", "{CBA1A83B-601B-4F17-ABF1-87A521994F98}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "IisCertManager.Setup", "src\IisCertManager.Setup\IisCertManager.Setup.csproj", "{E3256252-45E9-40E1-A830-D5B6BB787630}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -87,6 +89,18 @@ Global
 		{CBA1A83B-601B-4F17-ABF1-87A521994F98}.Release|x64.Build.0 = Release|Any CPU
 		{CBA1A83B-601B-4F17-ABF1-87A521994F98}.Release|x86.ActiveCfg = Release|Any CPU
 		{CBA1A83B-601B-4F17-ABF1-87A521994F98}.Release|x86.Build.0 = Release|Any CPU
+		{E3256252-45E9-40E1-A830-D5B6BB787630}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E3256252-45E9-40E1-A830-D5B6BB787630}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E3256252-45E9-40E1-A830-D5B6BB787630}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{E3256252-45E9-40E1-A830-D5B6BB787630}.Debug|x64.Build.0 = Debug|Any CPU
+		{E3256252-45E9-40E1-A830-D5B6BB787630}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{E3256252-45E9-40E1-A830-D5B6BB787630}.Debug|x86.Build.0 = Debug|Any CPU
+		{E3256252-45E9-40E1-A830-D5B6BB787630}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E3256252-45E9-40E1-A830-D5B6BB787630}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E3256252-45E9-40E1-A830-D5B6BB787630}.Release|x64.ActiveCfg = Release|Any CPU
+		{E3256252-45E9-40E1-A830-D5B6BB787630}.Release|x64.Build.0 = Release|Any CPU
+		{E3256252-45E9-40E1-A830-D5B6BB787630}.Release|x86.ActiveCfg = Release|Any CPU
+		{E3256252-45E9-40E1-A830-D5B6BB787630}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -97,5 +111,6 @@ Global
 		{431AFAAB-A342-44EC-8AF9-425535E99182} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{B237613B-93FC-4697-BD45-AC1010A99245} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 		{CBA1A83B-601B-4F17-ABF1-87A521994F98} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{E3256252-45E9-40E1-A830-D5B6BB787630} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 	EndGlobalSection
 EndGlobal

@@ -22,6 +22,11 @@ Copy-Item "$root/VALIDATION.md" "$package/VALIDATION.md"
 Copy-Item "$root/REVIEW.md" "$package/REVIEW.md"
 $zip = Join-Path $root "artifacts/IisCertManager-$Runtime.zip"
 Compress-Archive "$package/*" $zip -Force
+# Embed the exact tested payload in a self-contained, administrator-elevated installer.
+$setupOutput = Join-Path $root 'artifacts/setup'
+Invoke-Dotnet publish "$root/src/IisCertManager.Setup" -c Release "-p:Version=$Version" -r $Runtime --self-contained true "-p:PayloadPath=$zip" -o $setupOutput
+$setup = Join-Path $root "artifacts/IisCertManager-Setup-$Runtime.exe"
+Copy-Item (Join-Path $setupOutput 'IisCertManager-Setup.exe') $setup -Force
 $sourceZip = Join-Path $root 'artifacts/IisCertManager-source.zip'
 $hasRepository = $false
 if ((Test-Path -LiteralPath (Join-Path $root '.git')) -and (Get-Command git -ErrorAction SilentlyContinue)) {
@@ -50,7 +55,7 @@ if ($hasRepository) {
     }
     Compress-Archive -Path $sourceStage -DestinationPath $sourceZip -Force
 }
-$hashes = @($zip, $sourceZip) | ForEach-Object {
+$hashes = @($setup, $zip, $sourceZip) | ForEach-Object {
     $hash = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLowerInvariant()
     "$hash  $([IO.Path]::GetFileName($_))"
 }

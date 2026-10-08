@@ -24,13 +24,8 @@ Windows 原生 WPF 客户端 + Windows Service。两者安装在同一台 IIS �
 
 ## 使用发布包
 
-1. 将 `IisCertManager-win-x64.zip` 解压到 Windows 服务器的本地目录。
-2. 打开管理员 PowerShell，进入解压目录，执行：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install.ps1
-```
-
+1. 下载 `IisCertManager-Setup-win-x64.exe`，双击运行，在 Windows 管理员权限提示中选择“是”。无需解压、无需安装 .NET、无需输入命令。
+2. 点击“安装 / 更新”，完成后点击“打开证书管家”。已有版本也可直接运行新安装程序更新；更新前关闭管理界面。安装失败会显示原因或日志位置。
 3. 从桌面打开“IIS Certificate Manager”（程序界面为中文）。界面要求管理员权限。
 4. 在“全局配置”填写联系邮箱，阅读并同意 Let's Encrypt 服务条款。建议保留测试 CA 做首次验证。
 5. 使用 DNS-01 时填写阿里云 DNS 主域，例如 `example.com`、RAM AccessKey ID 和 Secret；留空已有密钥表示保留。保存全局配置。
@@ -64,7 +59,7 @@ DNS 主域须由阿里云权威 DNS 托管，AccessKey 须有指定主域的新�
 .\scripts\Build.ps1
 ```
 
-构建解决方案，执行协议/调度/签名检查，发布自包含客户端与服务，再生成 `artifacts/IisCertManager-win-x64.zip`。安装包包含 `client/`、`service/`、`scripts/`、`docs/` 和本说明。`.github/workflows/windows.yml` 提供 Windows CI 工作流，在推送及拉取请求时执行编译、核心检查与发布包构建。CI 结果见仓库 Actions；构建成功不代表真实 IIS 或公网签发验收通过。
+构建解决方案，执行协议/调度/签名检查，发布自包含客户端与服务，再生成可双击的 `artifacts/IisCertManager-Setup-win-x64.exe` 和备用 ZIP 包 `artifacts/IisCertManager-win-x64.zip`。安装包包含 `client/`、`service/`、`scripts/`、`docs/` 和本说明。`.github/workflows/windows.yml` 提供 Windows CI 工作流，在推送及拉取请求时执行编译、核心检查与发布包构建。CI 结果见仓库 Actions；构建成功不代表真实 IIS 或公网签发验收通过。
 
 项目结构：
 
@@ -81,7 +76,7 @@ scripts/                      构建、安装、卸载、Windows 检查、绑定
 
 ## GitHub 自动打包与版本发布
 
-- 推送到 `main` 或提交 PR：Windows Actions 自动编译、执行核心检查和原生 Windows/IIS 检查，打包 Windows 自包含程序、源码包和 `SHA256SUMS.txt`，保存为 Actions Artifact。原生检查会在一次性 Windows runner 上启用 IIS，创建并清理临时站点/本地测试证书，验证安装、升级和卸载。
+- 推送到 `main` 或提交 PR：Windows Actions 自动编译、执行核心检查和原生 Windows/IIS 检查，打包 Windows 自包含程序、源码包和 `SHA256SUMS.txt`，保存为 Actions Artifact。原生检查会在一次性 Windows runner 上启用 IIS，创建并清理临时站点/本地测试证书，通过发布的 EXE 安装程序验证安装、升级和卸载。
 - 推送版本标签：自动创建 GitHub Release 并上传上述三项文件。含后缀的版本（如 `v0.1.0-beta.1`）自动标记为预发布，正式版本（如 `v0.1.0`）正常发布。
 - 手动发布：仓库 Actions → **Publish release** → Run workflow，选择源码分支/标签，输入不带 `v` 的版本号。已有标签必须指向本次构建提交；已发布 Release 不会被覆盖。
 - 可执行程序内的产品版本跟随 Release 版本；发布说明记录确切源码 SHA 和构建链接。
