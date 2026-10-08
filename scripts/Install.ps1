@@ -21,6 +21,12 @@ if (Get-Process -Name 'IisCertManager.Client' -ErrorAction SilentlyContinue) {
     throw 'Close IIS Certificate Manager before updating, then run the installer again.'
 }
 # Installer payloads store identical client/service files only once. The portable ZIP remains complete.
+function Get-PayloadHash([string]$Path) {
+    $stream = [IO.File]::OpenRead($Path)
+    $algorithm = [Security.Cryptography.SHA256]::Create()
+    try { [BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-', '').ToLowerInvariant() }
+    finally { $algorithm.Dispose(); $stream.Dispose() }
+}
 $sharedFiles = @()
 $sharedManifest = Join-Path $PackageRoot 'shared-files.json'
 if (Test-Path -LiteralPath $sharedManifest) {
@@ -31,7 +37,7 @@ if (Test-Path -LiteralPath $sharedManifest) {
             $entry.SHA256 -notmatch '^[a-f0-9]{64}$' -or -not $seen.Add($entry.Name)) { throw 'Invalid shared file manifest.' }
         $source = Join-Path (Join-Path $PackageRoot 'client') $entry.Name
         if (-not (Test-Path -LiteralPath $source -PathType Leaf) -or
-            (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.SHA256) {
+            (Get-PayloadHash $source) -ne $entry.SHA256) {
             throw "Shared payload file verification failed: $($entry.Name)"
         }
     }
@@ -48,7 +54,7 @@ foreach ($entry in $sharedFiles) {
     $source = Join-Path (Join-Path $InstallRoot 'client') $entry.Name
     $target = Join-Path (Join-Path $InstallRoot 'service') $entry.Name
     Copy-Item -LiteralPath $source -Destination $target -Force
-    if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.SHA256) {
+    if ((Get-PayloadHash $target) -ne $entry.SHA256) {
         throw "Installed shared file verification failed: $($entry.Name)"
     }
 }
