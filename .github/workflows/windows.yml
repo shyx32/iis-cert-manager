@@ -1,5 +1,11 @@
 name: Windows build
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: ['main']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   build:
     runs-on: windows-latest
@@ -13,4 +19,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: IisCertManager-win-x64
-          path: artifacts/IisCertManager-win-x64.zip
+          path: |
+            artifacts/*.zip
+            artifacts/SHA256SUMS.txt
+          if-no-files-found: error

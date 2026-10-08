@@ -1,0 +1,86 @@
+name: Publish release
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without v, e.g. 0.1.0 or 0.1.0-beta.1'
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.event.inputs.version || github.ref_name }}
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Validate version and immutable tag
+        id: version
+        shell: pwsh
+        env:
+          REQUESTED_VERSION: ${{ inputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') { $env:REQUESTED_VERSION } else { $env:GITHUB_REF_NAME.Substring(1) }
+          if ($version -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z]+([.-][0-9A-Za-z]+)*)?$') { throw 'Invalid release version.' }
+          $tag = "v$version"
+          git show-ref --verify --quiet "refs/tags/$tag"
+          if ($LASTEXITCODE -eq 0) {
+            $existing = git rev-list -n 1 $tag
+            if ($LASTEXITCODE -ne 0 -or $existing -ne $env:GITHUB_SHA) { throw 'Existing tag points to a different commit. Use a new version.' }
+          } elseif ($LASTEXITCODE -ne 1) { throw 'Unable to inspect tag.' }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+          "prerelease=$($version.Contains('-').ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+      - name: Build, check and package
+        shell: pwsh
+        env:
+          RELEASE_VERSION: ${{ steps.version.outputs.version }}
+        run: ./scripts/Build.ps1 -Version $env:RELEASE_VERSION
+      - name: Preserve build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ steps.version.outputs.tag }}
+          path: |
+            artifacts/*.zip
+            artifacts/SHA256SUMS.txt
+          if-no-files-found: error
+      - name: Publish GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+          IS_PRERELEASE: ${{ steps.version.outputs.prerelease }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $notes = @"
+          Windows 原生 WPF 客户端 + 本机 Windows 服务；支持 IIS 站点/证书读取、ACME HTTP-01、阿里云 DNS-01、HTTPS 绑定与自动续期。
+
+          下载 IisCertManager-win-x64.zip，在 Windows 管理员 PowerShell 中运行 scripts/Install.ps1。包内附带 .NET 运行时、使用说明及验收步骤。SHA256SUMS.txt 用于校验下载文件。
+
+          本版本由 Windows CI 编译并执行核心逻辑检查。实际 IIS/HTTP.sys、真实域名签发、公网 TLS 与无人值守续期仍需在目标服务器验收。程序尚未进行 Authenticode 签名。
+
+          Source commit: $env:GITHUB_SHA
+          Build: https://github.com/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID
+          "@
+          $notes | Set-Content -Encoding utf8 artifacts/release-notes.md
+          gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json tagName 2>$null
+          if ($LASTEXITCODE -eq 0) { throw 'Release already exists; published releases are not overwritten. Use a new version.' }
+          $releaseArgs = @('release', 'create', $env:RELEASE_TAG, '--repo', $env:GITHUB_REPOSITORY,
+            '--target', $env:GITHUB_SHA, '--title', "IIS 证书管家 $env:RELEASE_TAG", '--notes-file', 'artifacts/release-notes.md')
+          if ($env:IS_PRERELEASE -eq 'true') { $releaseArgs += '--prerelease' }
+          $releaseArgs += @('artifacts/IisCertManager-win-x64.zip', 'artifacts/IisCertManager-source.zip', 'artifacts/SHA256SUMS.txt')
+          & gh @releaseArgs
+          if ($LASTEXITCODE -ne 0) { throw 'GitHub Release publishing failed.' }

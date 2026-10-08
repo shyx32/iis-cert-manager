@@ -1,6 +1,6 @@
 # IIS 证书管家
 
-[GitHub 仓库](https://github.com/shyx32/iis-cert-manager) · [Windows 构建](https://github.com/shyx32/iis-cert-manager/actions/workflows/windows.yml)
+[下载版本](https://github.com/shyx32/iis-cert-manager/releases) · [GitHub 仓库](https://github.com/shyx32/iis-cert-manager) · [Windows 构建](https://github.com/shyx32/iis-cert-manager/actions/workflows/windows.yml)
 
 Windows 原生 WPF 客户端 + Windows Service。两者安装在同一台 IIS 服务器，通过仅限本机管理员和 SYSTEM 的命名管道通信。关闭界面后，服务继续自动签发和续期。
 
@@ -77,6 +77,21 @@ scripts/                      构建、安装、卸载、Windows 检查、绑定
 ```
 
 主依赖：Certes 4.1.0、DnsClient 1.8.0、Microsoft.Web.Administration 11.1.0，版本和传递依赖记录在 `packages.lock.json`。阿里云使用 HTTPS RPC API 与 HMAC-SHA1 官方请求签名；证书私钥使用 RSA。
+
+## GitHub 自动打包与版本发布
+
+- 推送到 `main` 或提交 PR：Windows Actions 自动编译、执行核心检查，打包 Windows 自包含程序、源码包和 `SHA256SUMS.txt`，保存为 Actions Artifact。
+- 推送版本标签：自动创建 GitHub Release 并上传上述三项文件。含后缀的版本（如 `v0.1.0-beta.1`）自动标记为预发布，正式版本（如 `v0.1.0`）正常发布。
+- 手动发布：仓库 Actions → **Publish release** → Run workflow，选择源码分支/标签，输入不带 `v` 的版本号。已有标签必须指向本次构建提交；已发布 Release 不会被覆盖。
+- 可执行程序内的产品版本跟随 Release 版本；发布说明记录确切源码 SHA 和构建链接。
+
+```powershell
+git tag v0.1.0-beta.1
+git push origin v0.1.0-beta.1
+# 或：gh workflow run release.yml -f version=0.1.0-beta.1
+```
+
+首次版本以预发布交付，Windows CI 构建通过仍不代表已完成真实 IIS 和证书签发验收。
 
 ## 状态和恢复
 
