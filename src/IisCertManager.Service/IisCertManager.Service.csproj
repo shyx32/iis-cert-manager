@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+<PropertyGroup><TargetFramework>net10.0-windows</TargetFramework><OutputType>Exe</OutputType></PropertyGroup>
+<ItemGroup>
+<ProjectReference Include="../IisCertManager.Contracts/IisCertManager.Contracts.csproj" />
+<PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.0" />
+<PackageReference Include="System.Security.Cryptography.ProtectedData" Version="10.0.0" />
+<PackageReference Include="Microsoft.Web.Administration" Version="11.1.0" />
+<PackageReference Include="Certes" Version="4.1.0" />
+<PackageReference Include="DnsClient" Version="1.8.0" />
+</ItemGroup></Project>

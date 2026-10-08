@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup><TargetFramework>net10.0-windows</TargetFramework><OutputType>WinExe</OutputType><UseWPF>true</UseWPF><ApplicationManifest>app.manifest</ApplicationManifest></PropertyGroup>
+<ItemGroup><ProjectReference Include="../IisCertManager.Contracts/IisCertManager.Contracts.csproj" /></ItemGroup>
+</Project>

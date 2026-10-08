@@ -1,0 +1,10 @@
+{
+  "Version": "1",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": ["alidns:AddDomainRecord", "alidns:DeleteDomainRecord"],
+      "Resource": ["acs:alidns::YOUR_ACCOUNT_ID:domain/example.com"]
+    }
+  ]
+}

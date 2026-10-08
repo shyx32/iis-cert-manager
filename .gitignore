@@ -1,0 +1,17 @@
+**/bin/
+**/obj/
+artifacts/
+.vs/
+*.user
+
+# Runtime secrets and local configuration
+*.dpapi
+*.dpapi.bak
+*.pfx
+*.p12
+*.pem
+.env
+.env.*
+service.log*
+dns-cleanup.json
+.DS_Store
