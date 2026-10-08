@@ -6,7 +6,8 @@ Windows 原生 WPF 客户端 + Windows Service。两者安装在同一台 IIS �
 
 ## 已实现
 
-- 枚举 IIS 站点与 HTTP/HTTPS 绑定：站点状态、目录、主机名、IP、端口、证书指纹、到期时间。
+- 自动读取 IIS 站点与 HTTP/HTTPS 绑定：站点状态、目录、应用池、主机名、IP、端口、证书颁发者、指纹及到期时间。
+- 简洁浅色界面、横向导航、证书状态和站点搜索；启动时读取一次，之后手动同步 IIS 配置，保留未保存的配置输入。
 - Let's Encrypt ACME v2 签发；HTTP-01、阿里云 DNS-01；SAN 和泛域名证书。
 - 自动模式：阿里云主域及密钥完整时使用 DNS-01，否则使用 HTTP-01。DNS 验证失败会记录错误，不会悄悄切换验证方式。
 - 正式证书导入 `LocalMachine\My`、中间证书导入 `LocalMachine\CA`（不新增根信任），校验 SAN/有效期/EKU 后创建或更新所选站点的 HTTPS SNI 绑定，保留其他绑定及旧证书。
@@ -18,22 +19,24 @@ Windows 原生 WPF 客户端 + Windows Service。两者安装在同一台 IIS �
 
 ## 运行环境
 
-Windows Server 2016/2019/2022/2025（带桌面体验）+ IIS 10，或仍获支持的 Windows 11 + IIS 10。请启用 IIS 管理脚本和工具。首版发布 `win-x64` 自包含程序，运行时无需另外安装 .NET。开发/构建需要 .NET 10 SDK；生成安装 EXE 还需要 Windows 与 Visual Studio C++ Build Tools（包含 Windows SDK）。
+Windows Server 2016/2019/2022/2025（带桌面体验）+ IIS 10，或仍获支持的 Windows 11 + IIS 10。请启用 IIS 管理脚本和工具。首版发布 `win-x64` 自包含程序，运行时无需另外安装 .NET。开发/构建需要 .NET 10 SDK；Windows 使用 Visual Studio C++ Build Tools（包含 Windows SDK）生成安装 EXE，macOS 可使用 LLVM-MinGW 交叉编译。
 
 更新已有 HTTPS 绑定仅支持普通 SNI；可读取非 SNI 和集中证书存储绑定，但不会自动改写这些特殊绑定。空主机名/IP 站点须先在 IIS 中配置实际域名。一个全局配置支持一个阿里云 DNS 主域及其子域，可管理多个 IIS 站点。
 
 ## 使用发布包
 
-1. 下载 `IisCertManager-Setup-win-x64.exe`，双击运行，在 Windows 管理员权限提示中选择“是”。安装窗口使用 Win32 原生界面，不依赖 .NET 启动。无需解压、无需安装 .NET、无需输入命令。
-2. 点击“安装 / 更新”，完成后点击“打开证书管家”。已有版本也可直接运行新安装程序更新；更新前关闭管理界面。安装失败会显示原因或日志位置。
+1. 下载 `IisCertManager-Setup-win-x64.exe`，双击运行，如出现 Windows 管理员权限提示，选择“是”。安装窗口使用 Win32 原生界面，不依赖 .NET 启动。无需解压、无需安装 .NET、无需输入命令。安装器对客户端与服务的相同文件去重，安装时校验并补齐；便携 ZIP 保留完整文件。
+2. 点击“立即安装”（已有版本显示“更新安装”），完成后点击“打开证书管家”。已有版本也可直接运行新安装程序更新；更新前关闭管理界面。安装失败会显示原因或日志位置。
 3. 从桌面打开“IIS Certificate Manager”（程序界面为中文）。界面要求管理员权限。
-4. 在“全局配置”填写联系邮箱，阅读并同意 Let's Encrypt 服务条款。建议保留测试 CA 做首次验证。
-5. 使用 DNS-01 时填写阿里云 DNS 主域，例如 `example.com`、RAM AccessKey ID 和 Secret；留空已有密钥表示保留。保存全局配置。
-6. 在“IIS 站点与证书”选择一个有主机名的绑定；填写证书域名、验证方式、目标 HTTPS 端口。证书必须包含或覆盖所选绑定主机名。
-7. 点击“立即签发 / 更新绑定”。测试成功后，关闭测试 CA 并保存全局配置，再签发正式证书。
+4. 在“签发设置”填写联系邮箱，阅读并同意 Let's Encrypt 服务条款。建议保留测试 CA 做首次验证。
+5. 使用 DNS-01 时填写阿里云 DNS 主域，例如 `example.com`、RAM AccessKey ID 和 Secret；留空已有密钥表示保留。保存设置。
+6. 在“站点与证书”选择一个有主机名的绑定；填写证书域名、验证方式、目标 HTTPS 端口。证书必须包含或覆盖所选绑定主机名。
+7. 点击“签发并部署”。测试成功后，关闭测试 CA 并保存设置，再签发正式证书。
 8. 勾选自动续期的规则会由后台持续处理。**正式 CA 下保存启用的托管规则，即授权后台自动签发和部署该规则。** 可在“托管与续期”编辑、使用“暂停 / 启用续期”按钮暂停或恢复、或移除规则。即使原 IIS 绑定已删除，也可以直接暂停规则。
 
 每条规则更新一个具体 IIS 主机名/IP/HTTPS 端口。SAN 列表不会自动生成其他域名的 IIS 绑定；需要部署到另一个绑定时，为它建立另一条规则。新建规则即使原来已有第三方证书，也会按托管配置签发新证书。
+
+主界面启动时读取一次本机 IIS，之后点击“同步 IIS”手动刷新；界面空闲时不定时轮询服务。选择绑定后自动填充域名及 HTTPS 端口，右侧显示实际目录、应用池和证书详情。点击“重新读取所选绑定”可恢复当前绑定对应的已保存规则。手动同步不覆盖正在输入的域名、验证方式或账户配置；正式签发和续期完成后自动更新 IIS HTTPS 绑定并回读核验。
 
 ## 两种验证的前提
 
@@ -61,6 +64,18 @@ DNS 主域须由阿里云权威 DNS 托管，AccessKey 须有指定主域的新�
 
 构建解决方案，执行协议/调度/签名检查，发布自包含客户端与服务，再生成可双击的 `artifacts/IisCertManager-Setup-win-x64.exe` 和备用 ZIP 包 `artifacts/IisCertManager-win-x64.zip`。安装包包含 `client/`、`service/`、`scripts/`、`docs/` 和本说明。`.github/workflows/windows.yml` 提供 Windows CI 工作流，在推送及拉取请求时执行编译、核心检查与发布包构建。CI 结果见仓库 Actions；构建成功不代表真实 IIS 或公网签发验收通过。
 
+### 本地 macOS 打包与自签名测试
+
+```powershell
+./scripts/Build.ps1 -Version 0.1.0-beta.4 -NativeToolchain /path/to/llvm-mingw -TestSign -OsslSignCode /path/to/osslsigncode -WorkingTreeSource
+```
+
+需要 .NET 10 SDK、PowerShell、LLVM-MinGW（macOS universal）、OpenSSL 3 和 osslsigncode。`-WorkingTreeSource` 将尚未提交的源码一起打包，便于先上传 Windows 验收再提交。默认构建仍从 HEAD 归档源码。
+
+`-TestSign` 使用 14 天有效的临时自签名代码签名证书，对安装器、客户端和服务 EXE 签名，生成公开证书 `artifacts/TEST-SIGNING.cer`；私钥在构建结束后清除。证书不会自动导入受信任根或受信任发布者，测试签名不代表公共可信发布者，也不保证出现 UAC 或消除 SmartScreen 提示。Windows 同样支持 `./scripts/Build.ps1 -TestSign`。
+
+安装器始终通过 `requireAdministrator` manifest 要求管理员权限。是否出现 UAC 取决于账户和系统策略：内置 Administrator 未启用管理员批准模式时可直接以管理员权限启动，与是否代码签名是两回事。
+
 项目结构：
 
 ```text
@@ -87,7 +102,7 @@ git push origin v0.1.0-beta.1
 # 或：gh workflow run release.yml -f version=0.1.0-beta.1
 ```
 
-首次版本以预发布交付，Windows CI 构建通过仍不代表已完成真实 IIS 和证书签发验收。
+首个正式发布版本为 v0.1.0。Windows CI 构建通过不替代真实域名的 CA 签发验收。
 
 ## 状态和恢复
 
@@ -138,3 +153,5 @@ Windows 管理员可执行 `scripts/Verify-Windows.ps1` 检查服务、命名管
 - [IIS SSL 绑定](https://learn.microsoft.com/en-us/iis/configuration/system.applicationhost/sites/sitedefaults/bindings/binding)
 - [阿里云 AddDomainRecord](https://www.alibabacloud.com/help/en/dns/api-alidns-2015-01-09-adddomainrecord)
 - [阿里云 DeleteDomainRecord](https://www.alibabacloud.com/help/en/dns/api-alidns-2015-01-09-deletedomainrecord)
+
+程序图标使用 Microsoft Fluent UI System Icons 的 Shield Checkmark（MIT），来源提交 `cd332ec1f90cda2fad16f86754f8da52f1e9ab30`；授权文本随客户端附带。

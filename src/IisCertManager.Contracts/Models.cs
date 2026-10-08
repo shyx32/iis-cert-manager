@@ -23,7 +23,7 @@ public sealed record Settings
     public bool ClearDnsCredentials { get; set; }
 }
 public sealed record SiteBinding(long SiteId, string SiteName, string State, string Root, string Protocol,
-    string Ip, int Port, string Host, string BindingInformation, string? Thumbprint, DateTimeOffset? Expires, int SslFlags);
+    string Ip, int Port, string Host, string BindingInformation, string? Thumbprint, DateTimeOffset? Expires, int SslFlags, string? CertificateSubject = null, string? CertificateIssuer = null, string? CertificateStore = null, string? ApplicationPool = null);
 public sealed record Profile
 {
     public Guid Id { get; set; } = Guid.NewGuid();

@@ -15,6 +15,7 @@ public sealed class IisManager(StateStore store)
             var hash = binding.Protocol == "https" ? binding.CertificateHash : null;
             var thumb = hash is { Length: > 0 } ? Convert.ToHexString(hash) : null;
             DateTimeOffset? expires = null;
+            string? subject = null, issuer = null;
             if (thumb != null)
             {
                 try
@@ -23,6 +24,8 @@ public sealed class IisManager(StateStore store)
                     certStore.Open(OpenFlags.ReadOnly);
                     using var cert = certStore.Certificates.Find(X509FindType.FindByThumbprint, thumb, false).FirstOrDefault();
                     expires = cert?.NotAfter;
+                    subject = cert?.GetNameInfo(X509NameType.SimpleName, false);
+                    issuer = cert?.GetNameInfo(X509NameType.SimpleName, true);
                 }
                 catch (System.Security.Cryptography.CryptographicException) { }
             }
@@ -30,7 +33,8 @@ public sealed class IisManager(StateStore store)
                 Environment.ExpandEnvironmentVariables(site.Applications["/"].VirtualDirectories["/"].PhysicalPath),
                 binding.Protocol, binding.EndPoint.Address.ToString() is "0.0.0.0" ? "*" : binding.EndPoint.Address.ToString(),
                 binding.EndPoint.Port, binding.Host, binding.BindingInformation, thumb, expires,
-                binding.Protocol == "https" ? (int)binding.SslFlags : 0));
+                binding.Protocol == "https" ? (int)binding.SslFlags : 0, subject, issuer,
+                binding.Protocol == "https" ? binding.CertificateStoreName : null, site.Applications["/"].ApplicationPoolName));
         }
         return rows;
     }

@@ -27,4 +27,5 @@ jobs:
             artifacts/*.exe
             artifacts/*.zip
             artifacts/SHA256SUMS.txt
+            artifacts/*.png
           if-no-files-found: error

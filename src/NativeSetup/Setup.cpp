@@ -4,12 +4,24 @@
 #include <shellapi.h>
 #include <shlobj.h>
 #include <objbase.h>
+#include <commctrl.h>
 #include <string>
 #include <stdexcept>
 
 namespace {
-constexpr UINT Finished = WM_APP + 1;
-HWND mainWindow{}, label{}, button{};
+constexpr UINT Finished = WM_APP + 1, StageChanged = WM_APP + 2;
+HWND mainWindow{}, label{}, button{}, progress{}, closeButton{};
+HFONT bodyFont{}, titleFont{}, headingFont{};
+HBRUSH headerBrush{}, whiteBrush{};
+int dpi = 96;
+int Scale(int value) { return MulDiv(value, dpi, 96); }
+HWND Text(HWND parent, const wchar_t* value, int x, int y, int width, int height, HFONT font) {
+    HWND control = CreateWindowW(L"STATIC", value, WS_CHILD | WS_VISIBLE,
+        Scale(x), Scale(y), Scale(width), Scale(height), parent, nullptr, nullptr, nullptr);
+    SendMessageW(control, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
+    return control;
+}
+void ReportStage(int value) { if (mainWindow) PostMessageW(mainWindow, StageChanged, static_cast<WPARAM>(value), 0); }
 bool busy = false, installed = false;
 std::wstring failure;
 
@@ -43,6 +55,7 @@ void WriteResource(UINT id, const std::wstring& path) {
 int Install() {
     std::wstring stage;
     try {
+        ReportStage(1);
         GUID guid{};
         if (FAILED(CoCreateGuid(&guid))) throw std::runtime_error("Cannot generate installation identifier.");
         wchar_t name[40]; StringFromGUID2(guid, name, 40);
@@ -51,6 +64,7 @@ int Install() {
         if (!CreateDirectoryW(stage.c_str(), nullptr)) throw std::runtime_error("Cannot create protected installation folder.");
         WriteResource(101, stage + L"\\payload.zip");
         WriteResource(102, stage + L"\\bootstrap.ps1");
+        ReportStage(2);
         SECURITY_ATTRIBUTES security{sizeof(SECURITY_ATTRIBUTES), nullptr, TRUE};
         const auto logPath = stage + L"\\install.log";
         HANDLE log = CreateFileW(logPath.c_str(), GENERIC_WRITE, FILE_SHARE_READ, &security,
@@ -106,40 +120,100 @@ DWORD WINAPI Worker(void*) {
 LRESULT CALLBACK WindowProc(HWND window, UINT message, WPARAM wparam, LPARAM lparam) {
     switch (message) {
     case WM_CREATE: {
-        label = CreateWindowW(L"STATIC", L"安装 IIS 证书管家\n\n自动安装本机管理界面、后台续期服务和桌面快捷方式。\n请先启用 IIS 及 IIS 管理脚本和工具。",
-            WS_CHILD | WS_VISIBLE, 24, 24, 440, 130, window, nullptr, nullptr, nullptr);
-        button = CreateWindowW(L"BUTTON", L"安装 / 更新", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_DEFPUSHBUTTON,
-            320, 176, 140, 36, window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(1)), nullptr, nullptr);
-        if (!label || !button) return -1;
-        const auto font = GetStockObject(DEFAULT_GUI_FONT);
-        SendMessageW(label, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
-        SendMessageW(button, WM_SETFONT, reinterpret_cast<WPARAM>(font), TRUE);
+        Text(window, L"IIS 证书管家", 88, 24, 540, 36, titleFont);
+        Text(window, L"网站证书与自动续期", 90, 68, 540, 24, bodyFont);
+        Text(window, L"准备安装", 28, 148, 624, 28, headingFont);
+        Text(window, L"IIS 站点读取  ·  自动签发  ·  HTTPS 部署  ·  自动续期\n支持 HTTP-01 与阿里云 DNS-01", 28, 194, 624, 58, bodyFont);
+        Text(window, L"安装位置", 28, 264, 624, 22, bodyFont);
+        const auto path = ProgramFiles() + L"\\IisCertManager";
+        Text(window, path.c_str(), 28, 292, 624, 24, bodyFont);
+        label = Text(window, L"准备就绪。将安装管理界面、后台服务和桌面快捷方式。", 28, 338, 624, 46, bodyFont);
+        progress = CreateWindowW(PROGRESS_CLASSW, nullptr, WS_CHILD | PBS_MARQUEE,
+            Scale(28), Scale(398), Scale(624), Scale(3), window, nullptr, nullptr, nullptr);
+        const auto client = path + L"\\client\\IisCertManager.Client.exe";
+        const bool upgrade = GetFileAttributesW(client.c_str()) != INVALID_FILE_ATTRIBUTES;
+        button = CreateWindowW(L"BUTTON", upgrade ? L"更新安装" : L"立即安装", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW,
+            Scale(494), Scale(422), Scale(158), Scale(36), window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(1)), nullptr, nullptr);
+        closeButton = CreateWindowW(L"BUTTON", L"取消", WS_CHILD | WS_VISIBLE | WS_TABSTOP | BS_OWNERDRAW,
+            Scale(380), Scale(422), Scale(104), Scale(36), window, reinterpret_cast<HMENU>(static_cast<INT_PTR>(2)), nullptr, nullptr);
+        if (!label || !button || !closeButton || !progress) return -1;
+        SendMessageW(button, WM_SETFONT, reinterpret_cast<WPARAM>(bodyFont), TRUE);
+        SendMessageW(closeButton, WM_SETFONT, reinterpret_cast<WPARAM>(bodyFont), TRUE);
         return 0;
     }
+    case WM_CTLCOLORSTATIC: {
+        const auto dc = reinterpret_cast<HDC>(wparam);
+        RECT bounds{}; GetWindowRect(reinterpret_cast<HWND>(lparam), &bounds);
+        MapWindowPoints(nullptr, window, reinterpret_cast<POINT*>(&bounds), 2);
+        const bool header = bounds.top < Scale(118);
+        SetTextColor(dc, RGB(23, 43, 69));
+        SetBkColor(dc, header ? RGB(248, 250, 252) : RGB(255, 255, 255));
+        return reinterpret_cast<LRESULT>(header ? headerBrush : whiteBrush);
+    }
+    case WM_PAINT: {
+        PAINTSTRUCT paint{}; const auto dc = BeginPaint(window, &paint);
+        RECT area{}; GetClientRect(window, &area); area.bottom = Scale(118);
+        FillRect(dc, &area, headerBrush);
+        const auto icon = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(103));
+        DrawIconEx(dc, Scale(28), Scale(28), icon, Scale(44), Scale(44), 0, nullptr, DI_NORMAL);
+        EndPaint(window, &paint); return 0;
+    }
+    case DM_GETDEFID: return MAKELONG(1, DC_HASDEFID);
+    case WM_DRAWITEM: {
+        const auto item = reinterpret_cast<DRAWITEMSTRUCT*>(lparam);
+        const bool primary = item->CtlID == 1;
+        const bool disabled = (item->itemState & ODS_DISABLED) != 0;
+        const COLORREF fill = primary ? (disabled ? RGB(148, 176, 238) : (item->itemState & ODS_SELECTED) ? RGB(29, 78, 216) : RGB(37, 99, 235)) : RGB(255, 255, 255);
+        const auto brush = CreateSolidBrush(fill);
+        const auto pen = CreatePen(PS_SOLID, 1, primary ? fill : RGB(213, 221, 231));
+        const auto oldBrush = SelectObject(item->hDC, brush), oldPen = SelectObject(item->hDC, pen);
+        RoundRect(item->hDC, item->rcItem.left, item->rcItem.top, item->rcItem.right, item->rcItem.bottom, Scale(8), Scale(8));
+        SelectObject(item->hDC, oldBrush); SelectObject(item->hDC, oldPen); DeleteObject(brush); DeleteObject(pen);
+        SetBkMode(item->hDC, TRANSPARENT); SetTextColor(item->hDC, primary ? RGB(255, 255, 255) : RGB(51, 65, 85));
+        const auto oldFont = SelectObject(item->hDC, bodyFont);
+        wchar_t caption[128]{}; GetWindowTextW(item->hwndItem, caption, 128);
+        RECT text = item->rcItem; DrawTextW(item->hDC, caption, -1, &text, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+        if (item->itemState & ODS_FOCUS) { InflateRect(&text, -Scale(5), -Scale(5)); DrawFocusRect(item->hDC, &text); }
+        SelectObject(item->hDC, oldFont); return TRUE;
+    }
     case WM_COMMAND:
+        if (LOWORD(wparam) == 2 && !busy) { DestroyWindow(window); return 0; }
         if (LOWORD(wparam) == 1 && !busy) {
             if (installed) {
                 const auto client = ProgramFiles() + L"\\IisCertManager\\client\\IisCertManager.Client.exe";
-                const auto result = reinterpret_cast<INT_PTR>(ShellExecuteW(window, L"open", client.c_str(), nullptr, nullptr, SW_SHOWNORMAL));
-                if (result <= 32) MessageBoxW(window, L"无法启动管理界面，请从桌面快捷方式重试。", L"IIS 证书管家", MB_OK | MB_ICONERROR);
-                else DestroyWindow(window);
+                std::wstring command = L"\"" + client + L"\"";
+                STARTUPINFOW startup{sizeof(STARTUPINFOW)}; PROCESS_INFORMATION process{};
+                if (!CreateProcessW(client.c_str(), command.data(), nullptr, nullptr, FALSE, 0, nullptr, nullptr, &startup, &process))
+                    MessageBoxW(window, (L"无法启动管理界面：" + SystemError(GetLastError())).c_str(), L"IIS 证书管家", MB_OK | MB_ICONERROR);
+                else { CloseHandle(process.hThread); CloseHandle(process.hProcess); DestroyWindow(window); }
                 return 0;
             }
-            busy = true; EnableWindow(button, FALSE);
-            SetWindowTextW(label, L"正在安装，请稍候…\n\n正在解压程序、部署后台服务并创建桌面快捷方式。");
+            busy = true; EnableWindow(button, FALSE); EnableWindow(closeButton, FALSE);
+            SetWindowTextW(button, L"正在安装…");
+            SetWindowTextW(label, L"正在准备安装文件，请稍候…");
+            ShowWindow(progress, SW_SHOW); SendMessageW(progress, PBM_SETMARQUEE, TRUE, 25);
             HANDLE worker = CreateThread(nullptr, 0, Worker, nullptr, 0, nullptr);
             if (worker) CloseHandle(worker);
-            else { busy = false; EnableWindow(button, TRUE); MessageBoxW(window, L"无法启动安装任务，请重试。", L"安装失败", MB_OK | MB_ICONERROR); }
+            else {
+                busy = false; EnableWindow(button, TRUE); EnableWindow(closeButton, TRUE);
+                SendMessageW(progress, PBM_SETMARQUEE, FALSE, 0); ShowWindow(progress, SW_HIDE);
+                SetWindowTextW(button, L"重新安装"); SetWindowTextW(label, L"无法启动安装任务，请重试。");
+            }
         }
         return 0;
+    case StageChanged:
+        SetWindowTextW(label, wparam == 1 ? L"1 / 2  正在解压安装文件…" : L"2 / 2  正在部署程序、启动服务并创建快捷方式…");
+        return 0;
     case Finished:
-        busy = false; EnableWindow(button, TRUE);
+        busy = false; EnableWindow(button, TRUE); EnableWindow(closeButton, TRUE);
+        SendMessageW(progress, PBM_SETMARQUEE, FALSE, 0); ShowWindow(progress, SW_HIDE);
         if (wparam == 0) {
             installed = true;
-            SetWindowTextW(label, L"安装完成。\n\n后台服务已启动，关闭界面后仍会自动续期。\n可点击下方按钮或桌面快捷方式打开程序。");
-            SetWindowTextW(button, L"打开证书管家");
+            SetWindowTextW(label, L"安装完成！后台服务已启动。\n打开程序后即可读取 IIS 站点并配置证书自动签发。");
+            SetWindowTextW(button, L"打开证书管家"); SetWindowTextW(closeButton, L"完成");
         } else {
-            SetWindowTextW(label, L"安装未完成，请检查提示和日志后重试。");
+            SetWindowTextW(button, L"重试安装");
+            SetWindowTextW(label, L"安装未完成。请检查 IIS 是否启用，并关闭已打开的证书管家。\n详细错误和日志位置见提示。");
             MessageBoxW(window, failure.c_str(), L"安装失败", MB_OK | MB_ICONERROR);
         }
         return 0;
@@ -158,14 +232,27 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     LocalFree(args);
     if (count != 1 && !silent && !checkUi) return 2;
     if (silent) return Install();
+    SetProcessDPIAware();
+    HDC screen = GetDC(nullptr); dpi = GetDeviceCaps(screen, LOGPIXELSX); ReleaseDC(nullptr, screen);
+    bodyFont = CreateFontW(-Scale(14), 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Microsoft YaHei UI");
+    titleFont = CreateFontW(-Scale(24), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Microsoft YaHei UI");
+    headingFont = CreateFontW(-Scale(18), 0, 0, 0, FW_SEMIBOLD, FALSE, FALSE, FALSE, DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Microsoft YaHei UI");
+    headerBrush = CreateSolidBrush(RGB(248, 250, 252)); whiteBrush = CreateSolidBrush(RGB(255, 255, 255));
+    INITCOMMONCONTROLSEX controls{sizeof(INITCOMMONCONTROLSEX), ICC_PROGRESS_CLASS}; InitCommonControlsEx(&controls);
     WNDCLASSW klass{};
     klass.lpfnWndProc = WindowProc; klass.hInstance = instance;
     klass.lpszClassName = L"IisCertManagerNativeSetup";
     klass.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    klass.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(103));
     klass.hbrBackground = reinterpret_cast<HBRUSH>(static_cast<INT_PTR>(COLOR_WINDOW + 1));
     if (!RegisterClassW(&klass)) { MessageBoxW(nullptr, L"无法创建安装界面。", L"安装器错误", MB_OK | MB_ICONERROR); return 1; }
-    mainWindow = CreateWindowW(klass.lpszClassName, L"IIS 证书管家 — 安装", WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX,
-        CW_USEDEFAULT, CW_USEDEFAULT, 510, 280, nullptr, nullptr, instance, nullptr);
+    RECT frame{0, 0, Scale(680), Scale(480)};
+    const DWORD style = WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX;
+    AdjustWindowRect(&frame, style, FALSE);
+    const int width = frame.right - frame.left, height = frame.bottom - frame.top;
+    RECT desktop{}; SystemParametersInfoW(SPI_GETWORKAREA, 0, &desktop, 0);
+    mainWindow = CreateWindowW(klass.lpszClassName, L"IIS 证书管家 — 安装", style,
+        desktop.left + (desktop.right - desktop.left - width) / 2, desktop.top + (desktop.bottom - desktop.top - height) / 2, width, height, nullptr, nullptr, instance, nullptr);
     if (!mainWindow) { MessageBoxW(nullptr, L"无法打开安装窗口。", L"安装器错误", MB_OK | MB_ICONERROR); return 1; }
     ShowWindow(mainWindow, show); UpdateWindow(mainWindow);
     if (checkUi) SetTimer(mainWindow, 1, 500, nullptr);
@@ -173,5 +260,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int show) {
     while (GetMessageW(&message, nullptr, 0, 0) > 0) {
         if (!IsDialogMessageW(mainWindow, &message)) { TranslateMessage(&message); DispatchMessageW(&message); }
     }
+    DeleteObject(bodyFont); DeleteObject(titleFont); DeleteObject(headingFont);
+    DeleteObject(headerBrush); DeleteObject(whiteBrush);
     return static_cast<int>(message.wParam);
 }

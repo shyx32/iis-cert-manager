@@ -114,7 +114,7 @@ public sealed class RenewalWorker(StateStore store, CertificateManager certifica
                 {
                     using var cleanup = new AliyunDns(store, store.Data.Settings);
                     if (StateStore.DnsConfigured(store.Data.Settings)) await cleanup.Cleanup(stoppingToken);
-                    if (!store.Data.Settings.Staging)
+                    if (!store.Data.Settings.Staging && store.Data.Profiles.Any(x => x.Enabled && x.Thumbprint != null))
                     {
                         var bindings = iis.Read();
                         var changed = false;

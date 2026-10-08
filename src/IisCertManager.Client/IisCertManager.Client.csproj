@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-<PropertyGroup><TargetFramework>net10.0-windows</TargetFramework><OutputType>WinExe</OutputType><UseWPF>true</UseWPF><ApplicationManifest>app.manifest</ApplicationManifest></PropertyGroup>
+<PropertyGroup><TargetFramework>net10.0-windows</TargetFramework><OutputType>WinExe</OutputType><UseWPF>true</UseWPF><ApplicationIcon>../Assets/App.ico</ApplicationIcon><ApplicationManifest>app.manifest</ApplicationManifest></PropertyGroup>
 <ItemGroup><ProjectReference Include="../IisCertManager.Contracts/IisCertManager.Contracts.csproj" /></ItemGroup>
+<ItemGroup><Resource Include="../Assets/App.ico" Link="Assets/App.ico"/><Resource Include="../Assets/App.png" Link="Assets/App.png"/><Content Include="../Assets/App.ico" Link="Assets/App.ico" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/><Content Include="../Assets/Fluent-License.md" Link="Fluent-License.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest"/></ItemGroup>
 </Project>

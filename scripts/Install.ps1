@@ -20,6 +20,22 @@ if ((Test-Path $InstallRoot) -and ((Get-Item $InstallRoot).Attributes -band [IO.
 if (Get-Process -Name 'IisCertManager.Client' -ErrorAction SilentlyContinue) {
     throw 'Close IIS Certificate Manager before updating, then run the installer again.'
 }
+# Installer payloads store identical client/service files only once. The portable ZIP remains complete.
+$sharedFiles = @()
+$sharedManifest = Join-Path $PackageRoot 'shared-files.json'
+if (Test-Path -LiteralPath $sharedManifest) {
+    $sharedFiles = ConvertFrom-Json -InputObject (Get-Content -LiteralPath $sharedManifest -Raw)
+    $seen = New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($entry in $sharedFiles) {
+        if ($entry.Name -notmatch '^[A-Za-z0-9_][A-Za-z0-9_.-]*$' -or $entry.Name -in @('.', '..') -or
+            $entry.SHA256 -notmatch '^[a-f0-9]{64}$' -or -not $seen.Add($entry.Name)) { throw 'Invalid shared file manifest.' }
+        $source = Join-Path (Join-Path $PackageRoot 'client') $entry.Name
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf) -or
+            (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.SHA256) {
+            throw "Shared payload file verification failed: $($entry.Name)"
+        }
+    }
+}
 $service = Get-Service IisCertManager -ErrorAction SilentlyContinue
 if ($service) { Stop-Service IisCertManager; $service.WaitForStatus('Stopped', [TimeSpan]::FromSeconds(60)) }
 New-Item $InstallRoot -ItemType Directory -Force | Out-Null
@@ -28,6 +44,14 @@ New-Item $InstallRoot -ItemType Directory -Force | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'Install directory ACL failed.' }
 Copy-Item "$PackageRoot/service" "$InstallRoot/" -Recurse -Force
 Copy-Item "$PackageRoot/client" "$InstallRoot/" -Recurse -Force
+foreach ($entry in $sharedFiles) {
+    $source = Join-Path (Join-Path $InstallRoot 'client') $entry.Name
+    $target = Join-Path (Join-Path $InstallRoot 'service') $entry.Name
+    Copy-Item -LiteralPath $source -Destination $target -Force
+    if ((Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry.SHA256) {
+        throw "Installed shared file verification failed: $($entry.Name)"
+    }
+}
 Copy-Item "$PackageRoot/scripts" "$InstallRoot/" -Recurse -Force
 $binPath = '"' + (Join-Path $InstallRoot 'service/IisCertManager.Service.exe') + '"'
 if ($service) {
@@ -53,6 +77,7 @@ New-Item -Path $desktop -ItemType Directory -Force | Out-Null
 $link = $shell.CreateShortcut((Join-Path $desktop 'IIS Certificate Manager.lnk'))
 $link.TargetPath = Join-Path $InstallRoot 'client/IisCertManager.Client.exe'
 $link.WorkingDirectory = Join-Path $InstallRoot 'client'
+$link.IconLocation = (Join-Path $InstallRoot 'client/Assets/App.ico') + ',0'
 $link.Save()
 Write-Host 'Installed. Open IIS Certificate Manager from the desktop (UAC required).'
 Write-Host 'For HTTP-01, allow inbound public TCP 80 on the host/router/cloud firewall; no firewall rules were changed by this installer.'

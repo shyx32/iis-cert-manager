@@ -62,6 +62,7 @@ jobs:
             artifacts/*.exe
             artifacts/*.zip
             artifacts/SHA256SUMS.txt
+            artifacts/*.png
           if-no-files-found: error
       - name: Publish GitHub Release
         shell: pwsh
@@ -74,14 +75,14 @@ jobs:
           $notes = @'
           IIS 证书管家，自动管理 Windows IIS 网站的 HTTPS 证书。
 
-          - 自动读取 IIS 网站、域名绑定和 SSL 证书。
+          - 读取 IIS 网站、域名绑定和 SSL 证书，支持手动同步实际配置。
           - 支持 HTTP-01 和阿里云 DNS-01 自动签发；未配置 DNS 时默认使用 HTTP-01。
           - 自动部署证书并配置 HTTPS 绑定。
           - 支持证书自动续期，默认到期前 30 天续签，可调整为 7–60 天。
-          - 中文管理界面，支持查看证书状态、管理续期规则和操作日志。
+          - 中文管理界面，支持证书概览、站点搜索、应用池与证书详情、续期规则和操作日志。
           - 后台持续运行，关闭界面后仍可自动续期。
 
-          下载 `IisCertManager-Setup-win-x64.exe`，双击运行并点击“安装 / 更新”即可。
+          下载 `IisCertManager-Setup-win-x64.exe`，双击运行并点击“立即安装”；已有版本点击“更新安装”。
           '@
           $notes | Set-Content -Encoding utf8 artifacts/release-notes.md
           gh release view $env:RELEASE_TAG --repo $env:GITHUB_REPOSITORY --json tagName 2>$null
