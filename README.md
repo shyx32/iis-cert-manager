@@ -31,7 +31,7 @@ Windows 原生 WPF 客户端 + Windows Service。两者安装在同一台 IIS �
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\Install.ps1
 ```
 
-3. 从桌面打开“IIS 证书管家”。界面要求管理员权限。
+3. 从桌面打开“IIS Certificate Manager”（程序界面为中文）。界面要求管理员权限。
 4. 在“全局配置”填写联系邮箱，阅读并同意 Let's Encrypt 服务条款。建议保留测试 CA 做首次验证。
 5. 使用 DNS-01 时填写阿里云 DNS 主域，例如 `example.com`、RAM AccessKey ID 和 Secret；留空已有密钥表示保留。保存全局配置。
 6. 在“IIS 站点与证书”选择一个有主机名的绑定；填写证书域名、验证方式、目标 HTTPS 端口。证书必须包含或覆盖所选绑定主机名。

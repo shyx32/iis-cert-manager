@@ -40,7 +40,11 @@ public sealed class CertificateManager(StateStore store, IisManager iis)
                 File.Move(keyPath + ".tmp", keyPath);
             }
             var acme = new AcmeContext(settings.Staging ? WellKnownServers.LetsEncryptStagingV2 : WellKnownServers.LetsEncryptV2, key);
-            await acme.NewAccount(settings.Email, true).WaitAsync(ct);
+            var account = await acme.NewAccount(settings.Email, true).WaitAsync(ct);
+            var accountResource = await account.Resource().WaitAsync(ct);
+            var contact = "mailto:" + settings.Email;
+            if (accountResource.Contact?.Contains(contact, StringComparer.OrdinalIgnoreCase) != true)
+                await account.Update(new[] { contact }, true).WaitAsync(ct);
             var order = await acme.NewOrder(p.Domains).WaitAsync(ct);
             var authorizations = (await order.Authorizations().WaitAsync(ct)).ToList();
             var challenges = new List<(IAuthorizationContext Auth, IChallengeContext Challenge)>();

@@ -43,9 +43,13 @@ if ($LASTEXITCODE -ne 0) { throw 'Service recovery configuration failed.' }
 Start-Service IisCertManager
 (Get-Service IisCertManager).WaitForStatus('Running', [TimeSpan]::FromSeconds(30))
 $shell = New-Object -ComObject WScript.Shell
-$link = $shell.CreateShortcut((Join-Path ([Environment]::GetFolderPath('CommonDesktopDirectory')) 'IIS 证书管家.lnk'))
+$desktop = [Environment]::GetFolderPath('CommonDesktopDirectory')
+if ([string]::IsNullOrWhiteSpace($desktop)) { throw 'Cannot locate the common desktop directory.' }
+New-Item -Path $desktop -ItemType Directory -Force | Out-Null
+# ASCII file name also works on server images with no Chinese system locale.
+$link = $shell.CreateShortcut((Join-Path $desktop 'IIS Certificate Manager.lnk'))
 $link.TargetPath = Join-Path $InstallRoot 'client/IisCertManager.Client.exe'
 $link.WorkingDirectory = Join-Path $InstallRoot 'client'
 $link.Save()
-Write-Host 'Installed. Open IIS 证书管家 from the desktop (UAC required).'
+Write-Host 'Installed. Open IIS Certificate Manager from the desktop (UAC required).'
 Write-Host 'For HTTP-01, allow inbound public TCP 80 on the host/router/cloud firewall; no firewall rules were changed by this installer.'

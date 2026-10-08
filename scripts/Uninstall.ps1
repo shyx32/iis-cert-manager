@@ -9,7 +9,9 @@ if ($service) {
     & sc.exe delete IisCertManager | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Service deletion failed.' }
 }
-$link = Join-Path ([Environment]::GetFolderPath('CommonDesktopDirectory')) 'IIS 证书管家.lnk'
-if (Test-Path $link) { Remove-Item $link }
+foreach ($name in @('IIS Certificate Manager.lnk', 'IIS 证书管家.lnk')) {
+    $link = Join-Path ([Environment]::GetFolderPath('CommonDesktopDirectory')) $name
+    if (Test-Path $link) { Remove-Item $link }
+}
 Write-Host "Service removed. Program files retained: $InstallRoot"
 Write-Host 'IIS bindings, certificates and encrypted state in %ProgramData%\IisCertManager are retained.'

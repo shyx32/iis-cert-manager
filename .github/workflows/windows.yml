@@ -10,8 +10,8 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-dotnet@v6.0.0
         with:
           dotnet-version: '10.0.x'
       - shell: pwsh
@@ -19,7 +19,7 @@ jobs:
       - name: Native Windows and IIS checks
         shell: pwsh
         run: ./scripts/Test-Windows.ps1
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: IisCertManager-win-x64
           path: |
